@@ -1,16 +1,38 @@
 rules_version = '2';
 
-// Setlister ligger under spaces/{hash}/setlists/{id}, der {hash} er SHA-256 av koden
-// brukerne logger inn med. Den som kjenner koden, kan lese og skrive setlistene for den.
-// Det er ikke mulig å liste opp alle spaces, så koden fungerer som et passord.
+// Alt ligger under spaces/{hash}, der {hash} er SHA-256 av koden brukerne logger inn med.
+// Den som kjenner koden, kan lese og skrive innholdet. Det er ikke mulig å liste opp alle
+// spaces, så koden fungerer som et passord.
 service cloud.firestore {
   match /databases/{database}/documents {
+    function validSpace(space) {
+      return space.matches('^[0-9a-f]{64}$');
+    }
+
+    // Setlister
     match /spaces/{space}/setlists/{setlistId} {
-      allow get, list, delete: if space.matches('^[0-9a-f]{64}$');
-      allow create, update: if space.matches('^[0-9a-f]{64}$')
+      allow get, list, delete: if validSpace(space);
+      allow create, update: if validSpace(space)
         && request.resource.data.id == setlistId
         && request.resource.data.items is list
         && request.resource.data.items.size() <= 500;
+    }
+
+    // Filer (tekst, noter, akkordskjema): info-dokument + data delt i biter
+    match /spaces/{space}/files/{fileId} {
+      allow get, delete: if validSpace(space);
+      allow create, update: if validSpace(space)
+        && request.resource.data.size is int
+        && request.resource.data.size <= 20971520
+        && request.resource.data.chunks is int
+        && request.resource.data.chunks <= 30;
+
+      match /chunks/{n} {
+        allow get, delete: if validSpace(space);
+        allow create, update: if validSpace(space)
+          && request.resource.data.data is bytes
+          && request.resource.data.data.size() <= 800000;
+      }
     }
   }
 }

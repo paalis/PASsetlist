@@ -11,6 +11,8 @@ for alle låtene, og du kan jobbe videre med listen.
 - Legg til låter, pauser / sett-skiller, og flere låter fra en annen Spotify-liste
 - Total spilletid, dato og sted for spillejobben
 - Skriv ut en scenevennlig setlist med store bokstaver, eller kopier som tekst
+- Last opp tekst, noter eller akkordskjema (PDF, bilde eller tekstfil) til hver låt
+- Lag et samlet **notehefte (PDF)** med alle filene i setlistens rekkefølge, med forside og låtnummer på hver side
 - Angre sletting, dupliser setlister, sikkerhetskopi til/fra fil
 - Logg inn med en kode for å lagre setlistene i Firebase – alle med samme kode deler de samme setlistene
 - Uten innlogging lagres alt lokalt i nettleseren (localStorage)
@@ -57,6 +59,16 @@ Oppsett:
 
 Første gang man logger inn med en kode, flyttes setlister som ligger lokalt i nettleseren over
 til koden. Endringer synkroniseres i sanntid mellom enheter, og fungerer også uten nett.
+
+### Filer (tekst, noter, akkordskjema)
+
+Firebase Storage krever betalingsplanen Blaze, så filene lagres i stedet i Firestore, delt
+opp i biter på maks 750 kB: `spaces/{hash}/files/{id}` (info) og `.../chunks/{n}` (data).
+Maks 20 MB per fil. Bilder gjøres om til JPEG (maks 2400 px) før opplasting. Filer som ingen
+låt bruker lenger, slettes automatisk. Gratisplanen gir 1 GB lagring i Firestore.
+
+Noteheftet lages i nettleseren med [pdf-lib](https://pdf-lib.js.org) (MIT), som ligger i
+`public/vendor/pdf-lib`.
 
 Firebase JS SDK (10.12.2) ligger i `public/vendor/firebase`, og fontene (Oswald og Inter, OFL)
 i `public/fonts`, så appen ikke er avhengig av eksterne CDN-er.

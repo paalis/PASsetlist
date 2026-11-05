@@ -85,6 +85,19 @@
     </form>
   </dialog>
 
+  <!-- Dialog: filer (tekst, noter, akkordskjema) for én låt -->
+  <dialog id="filesDialog" class="dialog">
+    <div class="dialog-inner">
+      <p class="eyebrow">Tekst og noter</p>
+      <h2 id="filesTitle"></h2>
+      <p class="hint" id="filesSub"></p>
+      <div id="filesBody"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn primary" id="filesClose">Ferdig</button>
+      </div>
+    </div>
+  </dialog>
+
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="app.js"></script>

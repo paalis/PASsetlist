@@ -443,6 +443,7 @@ function renderHome() {
       const [removed] = setlists.splice(idx, 1);
       persistRemove(removed.id);
       renderHome();
+      scheduleFileCleanup(removed.items.flatMap((i) => i.files || []));
       toast(`«${removed.name || 'Uten navn'}» ble slettet`, {
         label: 'Angre',
         run: () => {
@@ -623,11 +624,12 @@ function renderEditor(sl) {
         <button class="btn small" id="addSpotify">＋ Fra Spotify</button>
         <button class="btn small" id="copyBtn">Kopier som tekst</button>
         <button class="btn small" id="printBtn">Skriv ut</button>
+        <button class="btn small accent" id="bookBtn">Notehefte (PDF)</button>
       </div>
     </div>
 
     <div class="cols" aria-hidden="true">
-      <span></span><span class="r">#</span><span>Tittel</span><span>Artist</span><span class="c">Toneart</span><span>Notat</span><span class="r">Tid</span><span class="spacer"></span>
+      <span></span><span class="r">#</span><span>Tittel</span><span>Artist</span><span class="c">Toneart</span><span>Notat</span><span class="r">Tid</span><span class="c">Noter</span><span class="spacer"></span>
     </div>
     <ol class="songs" id="songs"></ol>
 
@@ -684,6 +686,8 @@ function renderEditor(sl) {
     }
   };
 
+  document.getElementById('bookBtn').onclick = () => buildSongbook(sl);
+
   document.getElementById('printBtn').onclick = () => {
     renderStage(sl);
     document.body.classList.toggle('print-compact', sl.items.length > 22);
@@ -726,6 +730,7 @@ function renderSongs(sl) {
         <input class="key" data-f="key" value="${esc(item.key)}" placeholder="Tone" aria-label="Toneart" />
         <input class="notes" data-f="notes" value="${esc(item.notes)}" placeholder="Notat" aria-label="Notat" />
         <input class="dur" data-f="dur" value="${esc(fmtDuration(item.durationMs))}" placeholder="m:ss" aria-label="Varighet" />
+        ${filesButton(item)}
         ${rowActions()}
       </li>`;
     })
@@ -736,6 +741,14 @@ function renderSongs(sl) {
   }
 
   updateStats(sl);
+}
+
+function filesButton(item) {
+  const n = (item.files || []).length;
+  return `<button class="files-btn${n ? ' has' : ''}" data-act="files" title="Tekst og noter" aria-label="Tekst og noter (${n} filer)">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm12-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
+      ${n ? `<span class="badge">${n}</span>` : ''}
+    </button>`;
 }
 
 function rowActions() {
@@ -802,10 +815,16 @@ app.addEventListener('click', (e) => {
   if (idx < 0) return;
   const act = btn.dataset.act;
 
+  if (act === 'files') {
+    openFilesDialog(sl, sl.items[idx]);
+    return;
+  }
+
   if (act === 'del') {
     const [removed] = sl.items.splice(idx, 1);
     touch(sl);
     renderSongs(sl);
+    scheduleFileCleanup(removed.files);
     toast(`«${removed.title || 'Låt'}» fjernet`, {
       label: 'Angre',
       run: () => {
@@ -950,6 +969,343 @@ function renderStage(sl) {
         })
         .join('')}
     </ol>`;
+}
+
+/* ---------- Filer: tekst, noter og akkordskjema ---------- */
+
+const MAX_FILE = 20 * 1024 * 1024;
+const filesDialog = document.getElementById('filesDialog');
+let filesTarget = null; // { sl, item }
+
+function fmtSize(bytes) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} kB`;
+  return `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
+}
+
+function fileKind(type, name) {
+  if (type === 'application/pdf' || /\.pdf$/i.test(name)) return 'pdf';
+  if (/^image\//.test(type)) return 'image';
+  if (/^text\//.test(type) || /\.(txt|pro|cho|chopro|chordpro)$/i.test(name)) return 'text';
+  return null;
+}
+
+const fileIcon = (kind) => ({ pdf: 'PDF', image: 'BILDE', text: 'TEKST' }[kind] || 'FIL');
+
+function fileInUse(id) {
+  return setlists.some((sl) => sl.items.some((i) => (i.files || []).some((f) => f.id === id)));
+}
+
+// Slett filer som ingen låt bruker lenger (etter at «Angre» har gått ut)
+function scheduleFileCleanup(files) {
+  const ids = (files || []).map((f) => f.id);
+  if (!ids.length || !window.cloud?.signedIn) return;
+  setTimeout(() => {
+    for (const id of ids) if (!fileInUse(id)) window.cloud.deleteFile(id).catch(() => {});
+  }, 9000);
+}
+
+// Bilder gjøres om til JPEG (maks 2400 px) – sparer plass og gjør HEIC/WebP lesbare i PDF
+async function prepareImage(file) {
+  if ((file.type === 'image/jpeg' || file.type === 'image/png') && file.size < 1.5 * 1024 * 1024) return file;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('Klarte ikke å lese bildet.'));
+      i.src = url;
+    });
+    const scale = Math.min(1, 2400 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * scale);
+    c.height = Math.round(img.naturalHeight * scale);
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+    return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+// iOS blokkerer vinduer som åpnes etter en await – åpne fanen først, fyll den etterpå
+function openBlobLater(filename) {
+  const win = window.open('', '_blank');
+  if (win) {
+    try {
+      win.document.title = filename;
+      win.document.body.style.cssText = 'background:#0b0a10;color:#9e95b0;font:16px system-ui;display:grid;place-items:center;height:100vh;margin:0';
+      win.document.body.textContent = 'Henter …';
+    } catch (_) {}
+  }
+  return {
+    show(blob) {
+      const url = URL.createObjectURL(blob);
+      if (win && !win.closed) win.location.href = url;
+      else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    },
+    close() {
+      if (win && !win.closed) win.close();
+    },
+  };
+}
+
+function openFilesDialog(sl, item) {
+  filesTarget = { sl, item };
+  renderFilesDialog();
+  filesDialog.showModal();
+}
+
+function renderFilesDialog(status = '') {
+  if (!filesTarget) return;
+  const { item } = filesTarget;
+  const files = item.files || [];
+  const signedIn = !!window.cloud?.signedIn;
+  const body = document.getElementById('filesBody');
+  document.getElementById('filesTitle').textContent = item.title || 'Låt';
+  document.getElementById('filesSub').textContent = item.artist || '';
+
+  body.innerHTML = !signedIn
+    ? `<div class="files-login">
+        <p>Filer lagres i skyen og deles med alle som bruker samme kode. Logg inn med kode for å laste opp tekst og noter.</p>
+        <button type="button" class="btn primary" id="filesLogin">Logg inn med kode</button>
+      </div>`
+    : `${
+        files.length
+          ? `<ul class="file-list">${files
+              .map(
+                (f, i) => `
+            <li data-file="${f.id}">
+              <span class="file-kind ${fileKind(f.type, f.name)}">${fileIcon(fileKind(f.type, f.name))}</span>
+              <button type="button" class="file-name" data-fact="open" title="Åpne">${esc(f.name)}<small>${fmtSize(f.size)}</small></button>
+              <span class="file-actions">
+                ${i > 0 ? '<button type="button" class="icon-btn" data-fact="up" aria-label="Flytt opp">↑</button>' : ''}
+                <button type="button" class="icon-btn danger" data-fact="del" aria-label="Fjern">✕</button>
+              </span>
+            </li>`
+              )
+              .join('')}</ul>`
+          : '<p class="files-empty">Ingen filer ennå. Last opp tekst, noter eller akkordskjema.</p>'
+      }
+      <label class="upload-zone">
+        <input type="file" id="fileInput" multiple
+               accept="application/pdf,image/*,text/plain,.pdf,.txt,.pro,.cho,.chopro,.chordpro" />
+        <strong>＋ Last opp filer</strong>
+        <span>PDF, bilde (f.eks. bilde av noter) eller tekstfil · maks 20 MB</span>
+      </label>
+      <p class="hint files-status" id="filesStatus">${esc(status)}</p>`;
+
+  document.getElementById('filesLogin')?.addEventListener('click', () => {
+    filesDialog.close();
+    openCodeDialog();
+  });
+  document.getElementById('fileInput')?.addEventListener('change', (e) => uploadFiles([...e.target.files]));
+}
+
+async function uploadFiles(list) {
+  const { sl, item } = filesTarget;
+  const status = (t) => {
+    const el = document.getElementById('filesStatus');
+    if (el) el.textContent = t;
+  };
+  document.querySelector('.upload-zone')?.classList.add('busy');
+  let done = 0;
+  for (const original of list) {
+    try {
+      const kind = fileKind(original.type, original.name);
+      if (!kind) throw new Error(`«${original.name}» har et filformat som ikke støttes.`);
+      const file = kind === 'image' ? await prepareImage(original) : original;
+      if (file.size > MAX_FILE) throw new Error(`«${original.name}» er større enn 20 MB.`);
+      const type = file.type || (kind === 'pdf' ? 'application/pdf' : 'text/plain');
+      const meta = { id: uid(), name: file.name, type, size: file.size };
+      status(`Laster opp «${meta.name}» …`);
+      await window.cloud.uploadFile(meta.id, file, meta, (p) =>
+        status(`Laster opp «${meta.name}» … ${Math.round(p * 100)} %`)
+      );
+      item.files = [...(item.files || []), meta];
+      touch(sl);
+      done++;
+    } catch (err) {
+      renderFilesDialog(err.message);
+      renderSongs(sl);
+      return;
+    }
+  }
+  renderFilesDialog(done ? `${done} ${done === 1 ? 'fil' : 'filer'} lastet opp` : '');
+  renderSongs(sl);
+}
+
+filesDialog.addEventListener('click', async (e) => {
+  if (e.target === filesDialog) return filesDialog.close(); // klikk utenfor
+  const btn = e.target.closest('[data-fact]');
+  if (!btn || !filesTarget) return;
+  const { sl, item } = filesTarget;
+  const id = btn.closest('[data-file]').dataset.file;
+  const idx = item.files.findIndex((f) => f.id === id);
+  const f = item.files[idx];
+
+  if (btn.dataset.fact === 'open') {
+    const view = openBlobLater(f.name);
+    try {
+      view.show(await window.cloud.fetchFile(f.id));
+    } catch (err) {
+      view.close();
+      renderFilesDialog(err.message);
+    }
+  } else if (btn.dataset.fact === 'up' && idx > 0) {
+    [item.files[idx - 1], item.files[idx]] = [item.files[idx], item.files[idx - 1]];
+    touch(sl);
+    renderFilesDialog();
+  } else if (btn.dataset.fact === 'del') {
+    item.files.splice(idx, 1);
+    touch(sl);
+    renderFilesDialog(`«${f.name}» fjernet`);
+    renderSongs(sl);
+    if (!fileInUse(f.id)) window.cloud.deleteFile(f.id).catch(() => {});
+  }
+});
+document.getElementById('filesClose').onclick = () => filesDialog.close();
+
+/* ---------- Notehefte: alle filer samlet i setlistens rekkefølge ---------- */
+
+let pdfLib = null;
+const loadPdfLib = () => (pdfLib ||= import('./vendor/pdf-lib/pdf-lib.esm.min.js'));
+
+async function buildSongbook(sl) {
+  const songs = [];
+  let n = 0;
+  for (const item of sl.items) {
+    if (item.type === 'song') n++;
+    if (item.type === 'song' && (item.files || []).length) songs.push({ n, item });
+  }
+  if (!songs.length) {
+    toast('Ingen låter har filer ennå – trykk på notesymbolet på en låt for å laste opp.');
+    return;
+  }
+  if (!window.cloud?.signedIn) {
+    toast('Logg inn med kode for å lage notehefte.');
+    return;
+  }
+
+  const filename = `${(sl.name || 'Setlist').replace(/[\\/:*?"<>|]+/g, '').trim()} - notehefte.pdf`;
+  const view = openBlobLater(filename);
+  const btn = document.getElementById('bookBtn');
+  btn.disabled = true;
+  btn.textContent = 'Lager notehefte …';
+
+  try {
+    const { PDFDocument, StandardFonts, rgb } = await loadPdfLib();
+    const doc = await PDFDocument.create();
+    doc.setTitle(`${sl.name || 'Setlist'} – notehefte`);
+    const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+    const regular = await doc.embedFont(StandardFonts.Helvetica);
+    const mono = await doc.embedFont(StandardFonts.Courier);
+    const A4 = [595.28, 841.89];
+    const grey = rgb(0.45, 0.45, 0.45);
+
+    // Standardfontene kan bare skrive WinAnsi-tegn (æøå går fint); bytt ut resten
+    const MUSIC = { '♯': '#', '♭': 'b', '♮': '', '𝄪': 'x', '♪': '', '♫': '' };
+    const safe = (font, text) =>
+      [...String(text || '')]
+        .map((ch) => (ch in MUSIC ? MUSIC[ch] : ch))
+        .map((ch) => {
+          try {
+            font.encodeText(ch);
+            return ch;
+          } catch (_) {
+            return '?';
+          }
+        })
+        .join('');
+
+    // Forside med hele setlisten
+    let page = doc.addPage(A4);
+    let y = A4[1] - 70;
+    page.drawText(safe(bold, (sl.name || 'Setlist').toUpperCase()), { x: 50, y, size: 24, font: bold });
+    y -= 22;
+    const sub = [sl.date, sl.venue].filter(Boolean).join(' · ');
+    if (sub) page.drawText(safe(regular, sub), { x: 50, y, size: 11, font: regular, color: grey }), (y -= 16);
+    y -= 18;
+    let k = 0;
+    for (const item of sl.items) {
+      if (y < 60) (page = doc.addPage(A4)), (y = A4[1] - 60);
+      if (item.type === 'break') {
+        page.drawText(safe(bold, `— ${(item.title || 'Pause').toUpperCase()} —`), { x: 70, y, size: 11, font: bold, color: grey });
+      } else {
+        k++;
+        const hasFiles = (item.files || []).length;
+        page.drawText(`${k}.`, { x: 50, y, size: 13, font: bold, color: grey });
+        page.drawText(safe(bold, item.title), { x: 76, y, size: 13, font: bold });
+        const extra = [item.artist, item.key && `(${item.key})`, !hasFiles && '– ingen filer'].filter(Boolean).join('  ');
+        if (extra) page.drawText(safe(regular, extra), { x: 80 + bold.widthOfTextAtSize(safe(bold, item.title), 13), y, size: 10, font: regular, color: grey });
+      }
+      y -= 21;
+    }
+
+    const label = (p, song) => {
+      const t = safe(regular, `${song.n}. ${song.item.title}`);
+      const { width } = p.getSize();
+      p.drawText(t, { x: width - 24 - regular.widthOfTextAtSize(t, 8), y: 12, size: 8, font: regular, color: grey });
+    };
+
+    let fileCount = 0;
+    for (const [i, song] of songs.entries()) {
+      for (const f of song.item.files) {
+        btn.textContent = `Lager notehefte … ${i + 1}/${songs.length}`;
+        let blob;
+        try {
+          blob = await window.cloud.fetchFile(f.id);
+        } catch (_) {
+          continue;
+        }
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const kind = fileKind(f.type, f.name);
+        if (kind === 'pdf') {
+          const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
+          const pages = await doc.copyPages(src, src.getPageIndices());
+          pages.forEach((p) => (doc.addPage(p), label(p, song)));
+        } else if (kind === 'image') {
+          const img = f.type === 'image/png' ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
+          const p = doc.addPage(A4);
+          const s = Math.min((A4[0] - 40) / img.width, (A4[1] - 50) / img.height);
+          p.drawImage(img, { x: (A4[0] - img.width * s) / 2, y: A4[1] - 20 - img.height * s, width: img.width * s, height: img.height * s });
+          label(p, song);
+        } else if (kind === 'text') {
+          const lines = new TextDecoder().decode(bytes).replace(/\t/g, '    ').split(/\r?\n/);
+          let p = doc.addPage(A4);
+          let ty = A4[1] - 60;
+          p.drawText(safe(bold, `${song.n}. ${song.item.title}`), { x: 50, y: ty, size: 16, font: bold });
+          ty -= 28;
+          for (const line of lines) {
+            if (ty < 40) label(p, song), (p = doc.addPage(A4)), (ty = A4[1] - 50);
+            p.drawText(safe(mono, line).slice(0, 90), { x: 50, y: ty, size: 10.5, font: mono });
+            ty -= 14;
+          }
+          label(p, song);
+        }
+        fileCount++;
+      }
+    }
+
+    view.show(new Blob([await doc.save()], { type: 'application/pdf' }));
+    toast(`Notehefte med ${fileCount} filer fra ${songs.length} låter`);
+  } catch (err) {
+    view.close();
+    toast(`Klarte ikke å lage notehefte: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Notehefte (PDF)';
+  }
 }
 
 /* ---------- Start ---------- */

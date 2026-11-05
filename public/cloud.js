@@ -53,7 +53,7 @@ async function start() {
     import(`${SDK}/firebase-app.js`),
     import(`${SDK}/firebase-firestore.js`),
   ]);
-  const { initializeFirestore, persistentLocalCache, collection, doc, setDoc, deleteDoc, onSnapshot } = fs;
+  const { initializeFirestore, persistentLocalCache, collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, Bytes } = fs;
 
   const fbApp = initializeApp(firebaseConfig);
   let db;
@@ -101,7 +101,57 @@ async function start() {
     signOut,
     save: (sl) => (space ? setDoc(ref(sl.id), clean(sl)) : Promise.resolve()),
     remove: (id) => (space ? deleteDoc(ref(id)) : Promise.resolve()),
+    get signedIn() {
+      return !!space;
+    },
+    uploadFile,
+    fetchFile,
+    deleteFile,
   };
+
+  /* ---------- Filer (noter, tekst, akkordskjema) ----------
+     Firebase Storage krever betalingsplan, så filene lagres i Firestore,
+     delt opp i biter: spaces/{hash}/files/{id} (info) + .../chunks/{n} (data). */
+  const CHUNK = 750000;
+  const fileRef = (id) => doc(db, 'spaces', space, 'files', id);
+  const chunkRef = (id, n) => doc(db, 'spaces', space, 'files', id, 'chunks', String(n));
+  const fileCache = new Map();
+
+  async function uploadFile(id, blob, meta, onProgress) {
+    if (!space) throw new Error('Logg inn med kode for å laste opp filer.');
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const chunks = Math.max(1, Math.ceil(bytes.length / CHUNK));
+    for (let n = 0; n < chunks; n++) {
+      await setDoc(chunkRef(id, n), { data: Bytes.fromUint8Array(bytes.subarray(n * CHUNK, (n + 1) * CHUNK)) });
+      if (onProgress) onProgress((n + 1) / chunks);
+    }
+    // Info-dokumentet skrives sist, så en avbrutt opplasting aldri ser komplett ut
+    await setDoc(fileRef(id), { name: meta.name, type: meta.type, size: bytes.length, chunks, createdAt: Date.now() });
+    fileCache.set(id, new Blob([bytes], { type: meta.type }));
+  }
+
+  async function fetchFile(id) {
+    if (fileCache.has(id)) return fileCache.get(id);
+    if (!space) throw new Error('Logg inn med kode for å åpne filer.');
+    const info = await getDoc(fileRef(id));
+    if (!info.exists()) throw new Error('Filen finnes ikke lenger.');
+    const { chunks, type } = info.data();
+    const parts = await Promise.all(
+      Array.from({ length: chunks }, (_, n) => getDoc(chunkRef(id, n)).then((d) => d.data().data.toUint8Array()))
+    );
+    const blob = new Blob(parts, { type });
+    fileCache.set(id, blob);
+    return blob;
+  }
+
+  async function deleteFile(id) {
+    if (!space) return;
+    fileCache.delete(id);
+    const info = await getDoc(fileRef(id));
+    const chunks = info.exists() ? info.data().chunks : 0;
+    await deleteDoc(fileRef(id));
+    await Promise.all(Array.from({ length: chunks }, (_, n) => deleteDoc(chunkRef(id, n))));
+  }
 
   emit('cloud:ready', { enabled: true });
 
