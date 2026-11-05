@@ -3,8 +3,8 @@
 /* =========================================================
    Setlist Generator – setlister fra Spotify-spillelister
    Uten innlogging lagres data i nettleseren (localStorage).
-   Med innlogging (Firebase, se cloud.js) lagres alt i Firestore
-   og synkroniseres mellom enheter.
+   Med innlogging via kode (Firebase, se cloud.js) lagres alt i
+   Firestore og deles mellom alle som bruker samme kode.
    ========================================================= */
 
 const STORAGE_KEY = 'passetlist.v1';
@@ -95,23 +95,64 @@ function renderAccount() {
   accountEl.hidden = false;
   if (cloudUser) {
     accountEl.innerHTML = `
-      ${cloudUser.photo ? `<img src="${esc(cloudUser.photo)}" alt="" width="28" height="28" referrerpolicy="no-referrer" />` : ''}
-      <span class="who">${esc(cloudUser.name || cloudUser.email || 'Innlogget')}</span>
+      <button class="code-chip" id="codeChip" title="Kopier koden">
+        <span class="code-label">Kode</span><span class="code-value">${esc(cloudUser.code)}</span>
+      </button>
       <button class="btn small ghost" id="signOutBtn">Logg ut</button>`;
+    document.getElementById('codeChip').onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(cloudUser.code);
+        toast('Koden er kopiert – del den med bandet');
+      } catch (_) {}
+    };
     document.getElementById('signOutBtn').onclick = () => {
       flushSaves();
       window.cloud.signOut();
     };
   } else {
-    accountEl.innerHTML = `<button class="btn small" id="signInBtn">Logg inn med Google</button>`;
-    document.getElementById('signInBtn').onclick = () =>
-      window.cloud.signIn().catch((e) => {
-        if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
-          toast(`Innlogging feilet: ${e.message}`);
-        }
-      });
+    accountEl.innerHTML = `<button class="btn small" id="signInBtn">Logg inn<span class="hide-sm"> med kode</span></button>`;
+    document.getElementById('signInBtn').onclick = openCodeDialog;
   }
 }
+
+/* ---------- Kode-dialog ---------- */
+
+const codeDialog = document.getElementById('codeDialog');
+const codeForm = document.getElementById('codeForm');
+const codeError = document.getElementById('codeError');
+
+function randomCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // uten forvekslbare tegn (0/O, 1/I)
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  const chars = [...bytes].map((b) => alphabet[b % alphabet.length]);
+  return `${chars.slice(0, 4).join('')}-${chars.slice(4).join('')}`;
+}
+
+function openCodeDialog() {
+  codeForm.reset();
+  codeError.hidden = true;
+  codeDialog.showModal();
+  setTimeout(() => codeForm.code.focus(), 30);
+}
+
+document.getElementById('codeCancel').onclick = () => codeDialog.close();
+document.getElementById('codeGenerate').onclick = () => {
+  codeForm.code.value = randomCode();
+  codeForm.code.focus();
+  codeForm.code.select();
+};
+
+codeForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  codeError.hidden = true;
+  try {
+    await window.cloud.signIn(codeForm.code.value);
+    codeDialog.close();
+  } catch (err) {
+    codeError.textContent = err.message;
+    codeError.hidden = false;
+  }
+});
 
 window.addEventListener('cloud:ready', (e) => {
   cloudEnabled = !!e.detail.enabled;
@@ -132,7 +173,11 @@ window.addEventListener('cloud:user', (e) => {
   route();
 });
 
-window.addEventListener('cloud:error', (e) => toast(`Skyfeil: ${e.detail.message}`));
+window.addEventListener('cloud:error', (e) => {
+  // Feiler første innlasting, går vi tilbake til lokal lagring i stedet for å henge
+  if (cloudLoading && window.cloud) window.cloud.signOut();
+  toast(`Skyfeil: ${e.detail.message}`);
+});
 
 window.addEventListener('cloud:data', (e) => {
   const remote = e.detail.setlists;
@@ -141,7 +186,7 @@ window.addEventListener('cloud:data', (e) => {
 
   if (firstLoad) {
     setlists = remote;
-    // Flytt setlister som bare finnes lokalt i nettleseren over til kontoen
+    // Flytt setlister som bare finnes lokalt i nettleseren over til koden
     const local = loadLocal().filter((l) => !remote.some((r) => r.id === l.id));
     if (local.length) {
       setlists.push(...local);
@@ -149,7 +194,7 @@ window.addEventListener('cloud:data', (e) => {
       try {
         localStorage.removeItem(STORAGE_KEY);
       } catch (_) {}
-      toast(`${local.length} setlister fra denne nettleseren ble lagret i kontoen din`);
+      toast(`${local.length} setlister fra denne nettleseren ble lagret på koden`);
     }
     route();
     return;
@@ -319,43 +364,67 @@ function renderHome() {
   document.title = 'Setlist Generator';
   const sorted = [...setlists].sort((a, b) => b.updatedAt - a.updatedAt);
 
+  const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAI', 'JUN', 'JUL', 'AUG', 'SEP', 'OKT', 'NOV', 'DES'];
+  const stub = (s) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.date || '');
+    return m
+      ? `<span class="stub-day">${Number(m[3])}</span><span class="stub-month">${MONTHS[Number(m[2]) - 1]}</span><span class="stub-year">${m[1]}</span>`
+      : `<span class="vinyl" aria-hidden="true"></span>`;
+  };
+
   app.innerHTML = `
-    <div class="page-head">
-      <h1>Mine setlister</h1>
-      <div class="actions">
-        <button class="btn primary" id="newBtn">＋ Opprett ny</button>
+    <section class="hero">
+      <div class="hero-lights" aria-hidden="true"><i></i><i></i><i></i></div>
+      <p class="eyebrow">Fra spilleliste til scene</p>
+      <h1>Bygg kveldens <span class="grad">setlist</span></h1>
+      <p class="lead">Lim inn en Spotify-spilleliste, så får du en setlist du kan stokke om, notere i og ta med på scenen.</p>
+      <div class="hero-actions">
+        <button class="btn primary big" id="newBtn">＋ Opprett ny setlist</button>
+        ${cloudEnabled && !cloudUser ? '<button class="btn outline big" id="heroSignIn">Logg inn med kode</button>' : ''}
       </div>
-    </div>
+      <div class="eq" aria-hidden="true">${'<span></span>'.repeat(28)}</div>
+    </section>
+
+    <section class="list-section">
+      <div class="section-head">
+        <h2>Mine setlister</h2>
+        ${sorted.length ? `<span class="count">${sorted.length}</span>` : ''}
+      </div>
     ${
       cloudLoading
-        ? `<div class="empty"><p>Henter setlistene dine…</p></div>`
+        ? `<div class="empty"><p>Henter setlistene…</p></div>`
         : sorted.length
         ? `<div class="cards">${sorted
             .map(
               (s) => `
           <a class="card" href="#/s/${s.id}">
-            <h3>${esc(s.name || 'Uten navn')}</h3>
-            <div class="meta">${songCount(s)} låter${totalMs(s) ? ` · ${fmtTotal(totalMs(s))}` : ''}</div>
-            <div class="meta">${[s.date, s.venue].filter(Boolean).map(esc).join(' · ') || `Endret ${fmtDate(s.updatedAt)}`}</div>
+            <div class="stub">${stub(s)}</div>
+            <div class="card-body">
+              <h3>${esc(s.name || 'Uten navn')}</h3>
+              <div class="meta">${songCount(s)} låter${totalMs(s) ? ` · ${fmtTotal(totalMs(s))}` : ''}</div>
+              <div class="meta">${s.venue ? esc(s.venue) : `Endret ${fmtDate(s.updatedAt)}`}</div>
+            </div>
             <div class="card-menu">
               <button class="icon-btn" data-dup="${s.id}" title="Dupliser" aria-label="Dupliser">⧉</button>
-              <button class="icon-btn danger" data-del="${s.id}" title="Slett" aria-label="Slett">🗑</button>
+              <button class="icon-btn danger" data-del="${s.id}" title="Slett" aria-label="Slett">✕</button>
             </div>
           </a>`
             )
             .join('')}</div>`
         : `<div class="empty">
-            <h2>Ingen setlister ennå</h2>
+            <span class="vinyl big" aria-hidden="true"></span>
+            <h2>Scenen er tom</h2>
             <p>Lim inn en lenke til en Spotify-spilleliste, så lager vi en setlist du kan jobbe videre med.</p>
             <button class="btn primary" id="newBtnEmpty">＋ Opprett ny</button>
           </div>`
     }
+    </section>
     <div class="backup">
       <span>${
         cloudUser
-          ? `Lagres i kontoen din og synkroniseres mellom enheter.`
+          ? `Lagres på koden ${esc(cloudUser.code)} – alle som logger inn med samme kode ser de samme setlistene.`
           : cloudEnabled
-          ? 'Lagres bare i denne nettleseren. Logg inn for å lagre i skyen og bruke listene på flere enheter.'
+          ? 'Lagres bare i denne nettleseren. Logg inn med en kode for å lagre i skyen og dele med bandet.'
           : 'Lagres i denne nettleseren.'
       }</span>
       <button class="btn small ghost" id="exportBtn">Last ned sikkerhetskopi</button>
@@ -364,6 +433,7 @@ function renderHome() {
   `;
 
   app.querySelectorAll('#newBtn, #newBtnEmpty').forEach((b) => (b.onclick = () => openCreateDialog()));
+  document.getElementById('heroSignIn')?.addEventListener('click', openCodeDialog);
 
   app.querySelectorAll('[data-del]').forEach((b) => {
     b.onclick = (e) => {
@@ -538,6 +608,7 @@ function renderEditor(sl) {
   app.innerHTML = `
     <div class="editor-head">
       <a href="#/" class="back">← Alle setlister</a>
+      <p class="eyebrow">Setlist</p>
       <input class="title-input" id="slName" value="${esc(sl.name)}" placeholder="Navn på setlisten" aria-label="Navn" />
       <div class="meta-grid">
         <label>Dato<input class="plain" id="slDate" type="date" value="${esc(sl.date)}" /></label>

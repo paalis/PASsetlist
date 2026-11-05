@@ -3,22 +3,24 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b0a10" />
   <title>Setlist Generator</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="preload" href="fonts/oswald.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="topbar no-print">
     <a href="#/" class="brand">
-      <img src="icon.svg" alt="" width="28" height="28" />
-      <span>Setlist Generator</span>
+      <img src="icon.svg" alt="" width="30" height="30" />
+      <span>Setlist<b>Generator</b></span>
     </a>
     <div class="account" id="account" hidden></div>
   </header>
 
   <main id="app"></main>
 
-  <!-- Dialog: opprett ny / importer -->
+  <!-- Dialog: opprett ny / legg til låter -->
   <dialog id="createDialog" class="dialog">
     <form method="dialog" id="createForm">
       <h2 id="createTitle">Opprett ny setlist</h2>
@@ -51,6 +53,29 @@
       <div class="dialog-actions">
         <button type="button" class="btn ghost" value="cancel" id="createCancel">Avbryt</button>
         <button type="submit" class="btn primary" id="createSubmit">Hent låter</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Dialog: logg inn med kode -->
+  <dialog id="codeDialog" class="dialog">
+    <form method="dialog" id="codeForm">
+      <h2>Logg inn med kode</h2>
+      <p class="hint">Alle som logger inn med samme kode, ser og redigerer de samme setlistene – perfekt for et band.
+        Bruk en kode som er vanskelig å gjette.</p>
+
+      <label class="field">
+        <span>Kode</span>
+        <input name="code" class="code-input" type="text" autocomplete="off" autocapitalize="characters"
+               spellcheck="false" minlength="6" placeholder="F.eks. K7QM-4XPA" required />
+      </label>
+      <button type="button" class="linkish" id="codeGenerate">Lag en ny, tilfeldig kode</button>
+
+      <p class="error" id="codeError" hidden></p>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn ghost" id="codeCancel">Avbryt</button>
+        <button type="submit" class="btn primary">Logg inn</button>
       </div>
     </form>
   </dialog>
