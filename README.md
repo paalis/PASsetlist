@@ -12,7 +12,8 @@ for alle låtene, og du kan jobbe videre med listen.
 - Total spilletid, dato og sted for spillejobben
 - Skriv ut en scenevennlig setlist med store bokstaver, eller kopier som tekst
 - Angre sletting, dupliser setlister, sikkerhetskopi til/fra fil
-- Alt lagres lokalt i nettleseren (localStorage)
+- Logg inn med Google for å lagre setlistene i Firebase og bruke dem på flere enheter
+- Uten innlogging lagres alt lokalt i nettleseren (localStorage)
 
 ## Kjør lokalt
 
@@ -38,6 +39,26 @@ SPOTIFY_CLIENT_ID=... SPOTIFY_CLIENT_SECRET=... npm start
 ```
 
 Faller API-et gjennom, brukes embed-siden automatisk.
+
+## Lagring i Firebase
+
+Uten oppsett lagres setlistene bare i nettleseren. Slik kobler du til Firebase:
+
+1. Gå til <https://console.firebase.google.com> og opprett et prosjekt.
+2. **Authentication** → Kom i gang → **Sign-in method** → slå på **Google**.
+3. **Authentication** → **Settings** → **Authorized domains** → legg til `setlistgenerator.vercel.app`
+   (og eventuelt `passetlist.vercel.app`). `localhost` er med fra før.
+4. **Firestore Database** → Opprett database (produksjonsmodus, f.eks. region `eur3`).
+5. **Firestore Database** → **Regler** → lim inn innholdet i `firestore.rules` og publiser.
+   (Eller med Firebase CLI: `firebase deploy --only firestore:rules`.)
+6. **Prosjektinnstillinger** → Generelt → «Dine apper» → legg til en **nettapp** og kopier
+   `firebaseConfig`-verdiene inn i `public/firebase-config.js`.
+7. Commit og push til `main` – Vercel publiserer automatisk.
+
+Data lagres som `users/{uid}/setlists/{id}`, og reglene sørger for at hver bruker bare
+får tilgang til sine egne setlister. Første gang man logger inn, flyttes setlister som
+ligger lokalt i nettleseren over til kontoen. Endringer synkroniseres i sanntid mellom
+enheter, og fungerer også uten nett (synkroniseres når nettet er tilbake).
 
 ## Publisering
 

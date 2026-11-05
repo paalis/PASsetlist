@@ -2,7 +2,9 @@
 
 /* =========================================================
    Setlist Generator – setlister fra Spotify-spillelister
-   Data lagres lokalt i nettleseren (localStorage).
+   Uten innlogging lagres data i nettleseren (localStorage).
+   Med innlogging (Firebase, se cloud.js) lagres alt i Firestore
+   og synkroniseres mellom enheter.
    ========================================================= */
 
 const STORAGE_KEY = 'passetlist.v1';
@@ -10,7 +12,7 @@ const app = document.getElementById('app');
 
 /* ---------- Lagring ---------- */
 
-function loadAll() {
+function loadLocal() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const data = raw ? JSON.parse(raw) : [];
@@ -20,9 +22,14 @@ function loadAll() {
   }
 }
 
-let setlists = loadAll();
+let setlists = loadLocal();
+let cloudEnabled = false; // Firebase er konfigurert
+let cloudUser = null; // innlogget bruker
+let cloudLoading = false; // venter på første data fra Firestore
+const pendingSaves = new Map(); // id -> timer
 
-function saveAll() {
+function saveLocal() {
+  if (cloudUser) return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(setlists));
   } catch (_) {
@@ -30,14 +37,171 @@ function saveAll() {
   }
 }
 
+function cloudSave(sl) {
+  window.cloud.save(sl).catch((e) => toast(`Lagring feilet: ${e.message}`));
+}
+
+// Lagre én setlist (ny eller endret)
+function persist(sl) {
+  saveLocal();
+  if (!cloudUser || !window.cloud) return;
+  clearTimeout(pendingSaves.get(sl.id));
+  pendingSaves.set(
+    sl.id,
+    setTimeout(() => {
+      pendingSaves.delete(sl.id);
+      cloudSave(sl);
+    }, 600)
+  );
+}
+
+function persistRemove(id) {
+  saveLocal();
+  if (!cloudUser || !window.cloud) return;
+  clearTimeout(pendingSaves.get(id));
+  pendingSaves.delete(id);
+  window.cloud.remove(id).catch((e) => toast(`Sletting feilet: ${e.message}`));
+}
+
+function flushSaves() {
+  for (const [id, timer] of pendingSaves) {
+    clearTimeout(timer);
+    const sl = getSetlist(id);
+    if (sl && window.cloud) cloudSave(sl);
+  }
+  pendingSaves.clear();
+}
+window.addEventListener('pagehide', flushSaves);
+document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flushSaves());
+
 function getSetlist(id) {
   return setlists.find((s) => s.id === id);
 }
 
 function touch(sl) {
   sl.updatedAt = Date.now();
-  saveAll();
+  persist(sl);
 }
+
+/* ---------- Sky (Firebase) ---------- */
+
+const accountEl = document.getElementById('account');
+
+function renderAccount() {
+  if (!cloudEnabled) {
+    accountEl.hidden = true;
+    return;
+  }
+  accountEl.hidden = false;
+  if (cloudUser) {
+    accountEl.innerHTML = `
+      ${cloudUser.photo ? `<img src="${esc(cloudUser.photo)}" alt="" width="28" height="28" referrerpolicy="no-referrer" />` : ''}
+      <span class="who">${esc(cloudUser.name || cloudUser.email || 'Innlogget')}</span>
+      <button class="btn small ghost" id="signOutBtn">Logg ut</button>`;
+    document.getElementById('signOutBtn').onclick = () => {
+      flushSaves();
+      window.cloud.signOut();
+    };
+  } else {
+    accountEl.innerHTML = `<button class="btn small" id="signInBtn">Logg inn med Google</button>`;
+    document.getElementById('signInBtn').onclick = () =>
+      window.cloud.signIn().catch((e) => {
+        if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+          toast(`Innlogging feilet: ${e.message}`);
+        }
+      });
+  }
+}
+
+window.addEventListener('cloud:ready', (e) => {
+  cloudEnabled = !!e.detail.enabled;
+  renderAccount();
+  if (cloudEnabled && !location.hash.startsWith('#/s/')) renderHome();
+});
+
+window.addEventListener('cloud:user', (e) => {
+  cloudUser = e.detail.user;
+  if (cloudUser) {
+    cloudLoading = true;
+    setlists = [];
+  } else {
+    cloudLoading = false;
+    setlists = loadLocal();
+  }
+  renderAccount();
+  route();
+});
+
+window.addEventListener('cloud:error', (e) => toast(`Skyfeil: ${e.detail.message}`));
+
+window.addEventListener('cloud:data', (e) => {
+  const remote = e.detail.setlists;
+  const firstLoad = cloudLoading;
+  cloudLoading = false;
+
+  if (firstLoad) {
+    setlists = remote;
+    // Flytt setlister som bare finnes lokalt i nettleseren over til kontoen
+    const local = loadLocal().filter((l) => !remote.some((r) => r.id === l.id));
+    if (local.length) {
+      setlists.push(...local);
+      local.forEach(cloudSave);
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (_) {}
+      toast(`${local.length} setlister fra denne nettleseren ble lagret i kontoen din`);
+    }
+    route();
+    return;
+  }
+
+  // Slå sammen endringer fra andre enheter uten å bytte ut objektene som er i bruk
+  const viewing = currentSetlist();
+  let viewingChanged = false;
+  let changed = false;
+
+  for (const r of remote) {
+    const l = getSetlist(r.id);
+    if (!l) {
+      setlists.push(r);
+      changed = true;
+    } else if (!pendingSaves.has(r.id) && (r.updatedAt || 0) > (l.updatedAt || 0)) {
+      for (const k of Object.keys(l)) if (!(k in r)) delete l[k];
+      Object.assign(l, r);
+      changed = true;
+      if (l === viewing) viewingChanged = true;
+    }
+  }
+  const remoteIds = new Set(remote.map((r) => r.id));
+  const before = setlists.length;
+  setlists = setlists.filter((s) => remoteIds.has(s.id) || pendingSaves.has(s.id));
+  if (setlists.length !== before) changed = true;
+
+  if (!changed) return;
+  if (!location.hash.startsWith('#/s/')) return renderHome();
+  if (viewing && !getSetlist(viewing.id)) return (location.hash = '#/');
+  if (!viewingChanged) return;
+  // Tegn editoren på nytt, men behold markøren i feltet brukeren står i
+  const a = document.activeElement;
+  const focus =
+    a && app.contains(a) && a.matches('input')
+      ? { row: a.closest('.song')?.dataset.id, f: a.dataset.f, id: a.id, pos: a.selectionStart }
+      : null;
+  const y = window.scrollY;
+  renderEditor(viewing);
+  window.scrollTo(0, y);
+  if (focus) {
+    const el = focus.id
+      ? document.getElementById(focus.id)
+      : document.querySelector(`.song[data-id="${focus.row}"] [data-f="${focus.f}"]`);
+    if (el) {
+      el.focus();
+      try {
+        el.setSelectionRange(focus.pos, focus.pos);
+      } catch (_) {}
+    }
+  }
+});
 
 /* ---------- Hjelpere ---------- */
 
@@ -163,7 +327,9 @@ function renderHome() {
       </div>
     </div>
     ${
-      sorted.length
+      cloudLoading
+        ? `<div class="empty"><p>Henter setlistene dine…</p></div>`
+        : sorted.length
         ? `<div class="cards">${sorted
             .map(
               (s) => `
@@ -185,7 +351,13 @@ function renderHome() {
           </div>`
     }
     <div class="backup">
-      <span>Lagres i denne nettleseren.</span>
+      <span>${
+        cloudUser
+          ? `Lagres i kontoen din og synkroniseres mellom enheter.`
+          : cloudEnabled
+          ? 'Lagres bare i denne nettleseren. Logg inn for å lagre i skyen og bruke listene på flere enheter.'
+          : 'Lagres i denne nettleseren.'
+      }</span>
       <button class="btn small ghost" id="exportBtn">Last ned sikkerhetskopi</button>
       <label class="btn small ghost">Gjenopprett fra fil<input type="file" accept="application/json" id="importFile" hidden /></label>
     </div>
@@ -199,13 +371,13 @@ function renderHome() {
       const idx = setlists.findIndex((s) => s.id === b.dataset.del);
       if (idx < 0) return;
       const [removed] = setlists.splice(idx, 1);
-      saveAll();
+      persistRemove(removed.id);
       renderHome();
       toast(`«${removed.name || 'Uten navn'}» ble slettet`, {
         label: 'Angre',
         run: () => {
           setlists.splice(idx, 0, removed);
-          saveAll();
+          persist(removed);
           renderHome();
         },
       });
@@ -222,7 +394,7 @@ function renderHome() {
       copy.createdAt = copy.updatedAt = Date.now();
       copy.items.forEach((i) => (i.id = uid()));
       setlists.push(copy);
-      saveAll();
+      persist(copy);
       renderHome();
     };
   });
@@ -247,9 +419,9 @@ function renderHome() {
         if (!s || !Array.isArray(s.items)) continue;
         if (getSetlist(s.id)) s.id = uid();
         setlists.push(s);
+        persist(s);
         added++;
       }
-      saveAll();
       renderHome();
       toast(`${added} setlister gjenopprettet`);
     } catch (_) {
@@ -353,7 +525,7 @@ form.addEventListener('submit', async (e) => {
     items,
   };
   setlists.push(sl);
-  saveAll();
+  persist(sl);
   location.hash = `#/s/${sl.id}`;
   if (items.length) toast(`${items.length} låter hentet`);
 });
