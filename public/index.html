@@ -6,6 +6,11 @@
   <meta name="theme-color" content="#0b0a10" />
   <title>Setlist Generator</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="Setlist" />
   <link rel="preload" href="fonts/oswald.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -26,8 +31,8 @@
       <h2 id="createTitle">Opprett ny setlist</h2>
 
       <div class="segmented" role="tablist">
-        <button type="button" data-mode="spotify" class="active">Spotify-lenke</button>
-        <button type="button" data-mode="text">Lim inn tekst</button>
+        <button type="button" data-mode="spotify" class="active">Spotify</button>
+        <button type="button" data-mode="text">Tekst</button>
         <button type="button" data-mode="empty">Tom liste</button>
       </div>
 
@@ -35,7 +40,7 @@
         <span>Lenke til Spotify-spilleliste eller album</span>
         <input name="url" type="url" inputmode="url" autocomplete="off"
                placeholder="https://open.spotify.com/playlist/…" />
-        <small class="hint">Høyreklikk på listen i Spotify → Del → Kopier lenke til spilleliste. Listen må være offentlig.</small>
+        <small class="hint">I Spotify: trykk ⋯ (eller høyreklikk) på listen → Del → Kopier lenke. Listen må være offentlig.</small>
       </label>
 
       <label class="field" data-show="text" hidden>

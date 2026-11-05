@@ -870,7 +870,10 @@ app.addEventListener('pointerdown', (e) => {
 
   let scrollTimer = null;
   const autoScroll = () => {
-    const edge = lastY < 90 ? -12 : lastY > window.innerHeight - 70 ? 12 : 0;
+    // Rull når fingeren/musa er nær kanten (under de faste menyene øverst)
+    const bars = [...document.querySelectorAll('.topbar, .toolbar')].filter((el) => getComputedStyle(el).position === 'sticky');
+    const topEdge = Math.max(0, ...bars.map((el) => el.getBoundingClientRect().bottom)) + 40;
+    const edge = lastY < topEdge ? -12 : lastY > window.innerHeight - 70 ? 12 : 0;
     if (edge) {
       window.scrollBy(0, edge);
       layout();
