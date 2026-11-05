@@ -723,7 +723,7 @@ function renderSongs(sl) {
         <span class="num">${n}</span>
         <input class="title" data-f="title" value="${esc(item.title)}" placeholder="Tittel" aria-label="Tittel" />
         <input class="artist" data-f="artist" value="${esc(item.artist)}" placeholder="Artist" aria-label="Artist" />
-        <input class="key" data-f="key" value="${esc(item.key)}" placeholder="Toneart" aria-label="Toneart" />
+        <input class="key" data-f="key" value="${esc(item.key)}" placeholder="Tone" aria-label="Toneart" />
         <input class="notes" data-f="notes" value="${esc(item.notes)}" placeholder="Notat" aria-label="Notat" />
         <input class="dur" data-f="dur" value="${esc(fmtDuration(item.durationMs))}" placeholder="m:ss" aria-label="Varighet" />
         ${rowActions()}

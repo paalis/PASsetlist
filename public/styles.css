@@ -302,6 +302,13 @@ input.plain, textarea.plain {
 }
 input.plain:focus, textarea.plain:focus { outline: none; border-color: var(--accent); }
 input[type='date'] { color-scheme: dark; }
+/* Safari (iOS) gir datofeltet en egen minstebredde og ignorerer width – tving det inn i kolonnen */
+input.plain[type='date'] {
+  -webkit-appearance: none; appearance: none;
+  display: block; min-width: 0; max-width: 100%; min-height: 40px; text-align: left;
+}
+input.plain[type='date']::-webkit-date-and-time-value { text-align: left; margin: 0; }
+.meta-grid label { min-width: 0; }
 
 .toolbar {
   position: sticky; top: 59px; z-index: 5;
@@ -387,6 +394,8 @@ input[type='date'] { color-scheme: dark; }
   .hero { margin: 14px 0 32px; padding: 48px 18px 92px; }
   .lead { font-size: 16px; }
   .toolbar { margin: 0 -14px; padding: 10px 14px; }
+  .meta-grid { grid-template-columns: 1fr 1fr; }
+  .meta-grid label:last-child { grid-column: 1 / -1; }
   .cols { display: none; }
   /* Kompakte rader på mobil: tittel + toneart øverst, artist/notat/tid under */
   .song {
