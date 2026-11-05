@@ -1,7 +1,7 @@
 'use strict';
 
 /* =========================================================
-   PASsetlist – setlister fra Spotify-spillelister
+   Setlist Generator – setlister fra Spotify-spillelister
    Data lagres lokalt i nettleseren (localStorage).
    ========================================================= */
 
@@ -152,7 +152,7 @@ window.addEventListener('hashchange', route);
 /* ---------- Oversikt ---------- */
 
 function renderHome() {
-  document.title = 'PASsetlist';
+  document.title = 'Setlist Generator';
   const sorted = [...setlists].sort((a, b) => b.updatedAt - a.updatedAt);
 
   app.innerHTML = `
@@ -231,7 +231,7 @@ function renderHome() {
     const blob = new Blob([JSON.stringify(setlists, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `passetlist-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `setlist-generator-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -361,7 +361,7 @@ form.addEventListener('submit', async (e) => {
 /* ---------- Editor ---------- */
 
 function renderEditor(sl) {
-  document.title = `${sl.name || 'Setlist'} – PASsetlist`;
+  document.title = `${sl.name || 'Setlist'} – Setlist Generator`;
 
   app.innerHTML = `
     <div class="editor-head">
@@ -401,7 +401,7 @@ function renderEditor(sl) {
     document.getElementById(id).addEventListener('input', (e) => {
       sl[field] = e.target.value;
       touch(sl);
-      if (field === 'name') document.title = `${sl.name || 'Setlist'} – PASsetlist`;
+      if (field === 'name') document.title = `${sl.name || 'Setlist'} – Setlist Generator`;
     });
   };
   bind('slName', 'name');

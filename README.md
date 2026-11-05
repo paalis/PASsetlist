@@ -1,4 +1,4 @@
-# PASsetlist
+# Setlist Generator
 
 Lag setlister fra Spotify-spillelister. Lim inn en lenke, så hentes tittel og artist
 for alle låtene, og du kan jobbe videre med listen.
