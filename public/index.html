@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PASsetlist</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar no-print">
+    <a href="#/" class="brand">
+      <img src="icon.svg" alt="" width="28" height="28" />
+      <span>PASsetlist</span>
+    </a>
+  </header>
+
+  <main id="app"></main>
+
+  <!-- Dialog: opprett ny / importer -->
+  <dialog id="createDialog" class="dialog">
+    <form method="dialog" id="createForm">
+      <h2 id="createTitle">Opprett ny setlist</h2>
+
+      <div class="segmented" role="tablist">
+        <button type="button" data-mode="spotify" class="active">Spotify-lenke</button>
+        <button type="button" data-mode="text">Lim inn tekst</button>
+        <button type="button" data-mode="empty">Tom liste</button>
+      </div>
+
+      <label class="field" data-show="spotify">
+        <span>Lenke til Spotify-spilleliste eller album</span>
+        <input name="url" type="url" inputmode="url" autocomplete="off"
+               placeholder="https://open.spotify.com/playlist/…" />
+        <small class="hint">Høyreklikk på listen i Spotify → Del → Kopier lenke til spilleliste. Listen må være offentlig.</small>
+      </label>
+
+      <label class="field" data-show="text" hidden>
+        <span>Én låt per linje – «Artist - Tittel» eller bare tittel</span>
+        <textarea name="text" rows="8" placeholder="a-ha - Take On Me&#10;Kygo - Firestone&#10;Hallelujah"></textarea>
+      </label>
+
+      <label class="field" data-show-name>
+        <span>Navn på setlisten <em class="muted" data-show="spotify">(valgfritt – hentes fra Spotify)</em></span>
+        <input name="name" type="text" autocomplete="off" placeholder="F.eks. Julebord 14. desember" />
+      </label>
+
+      <p class="error" id="createError" hidden></p>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn ghost" value="cancel" id="createCancel">Avbryt</button>
+        <button type="submit" class="btn primary" id="createSubmit">Hent låter</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
