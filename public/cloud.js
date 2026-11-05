@@ -6,7 +6,7 @@
 //   cloud:error  { message }
 import { firebaseConfig } from './firebase-config.js';
 
-const SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
+const SDK = './vendor/firebase'; // Firebase JS SDK 10.12.2 (fra npm-pakken «firebase»)
 const emit = (name, detail) => window.dispatchEvent(new CustomEvent(name, { detail }));
 
 async function start() {
