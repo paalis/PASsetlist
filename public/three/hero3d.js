@@ -21,6 +21,21 @@ function cssAccent() {
   return value || '#ff3d3d';
 }
 
+// Toner ut hele canvaset (bare opacity) i siste del av scroll-effekten
+function createScrollFade(canvas) {
+  let last = -1;
+  return {
+    update(_t, _dt, state) {
+      const p = Math.min(1, Math.max(0, (state.scroll - 0.35) / 0.55));
+      const opacity = Math.round((1 - p * p * (3 - 2 * p)) * 1000) / 1000;
+      if (opacity !== last) {
+        canvas.style.opacity = opacity;
+        last = opacity;
+      }
+    },
+  };
+}
+
 async function ensureStage() {
   if (stage) return stage;
   if (starting) return starting;
@@ -29,7 +44,8 @@ async function ensureStage() {
     if (!s) return null; // ingen WebGL: behold bare bakgrunnsbildet
     s.add(createParticleField(s.THREE, { count: 4000, cameraZ: 10, fov: 45 })); // bakerst
     s.add(createEqualizer(s.THREE, { accent: cssAccent() }));
-    s.add(createCameraRig({ strengthX: 0.8, strengthY: 0.45 })); // musparallakse (ikke på mobil)
+    s.add(createCameraRig({ strengthX: 0.8, strengthY: 0.45, travel: 6 })); // musparallakse + scroll
+    s.add(createScrollFade(s.canvas)); // canvaset tones ut mot «Mine setlister»
     if (starting === promise) stage = s;
     return s;
   })());

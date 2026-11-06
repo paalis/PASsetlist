@@ -142,7 +142,7 @@ const fragmentShader = /* glsl */ `
  * @param THREE  Three.js-modulen (fra stage.THREE)
  * @param opts.accent  CSS-farge for aksent (hentes fra --accent)
  */
-export function createEqualizer(THREE, { accent = '#ff3d3d', animated = true } = {}) {
+export function createEqualizer(THREE, { accent = '#ff3d3d', animated = true, cameraZ = 10 } = {}) {
   const geometry = new THREE.BoxGeometry(1, 1, 1);
   geometry.translate(0, 0.5, 0); // søylene vokser oppover fra bunnen
 
@@ -203,7 +203,8 @@ export function createEqualizer(THREE, { accent = '#ff3d3d', animated = true } =
     }
 
     // Synlig flate i dybden z = 0
-    const visH = 2 * camera.position.z * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    // Fast referanseavstand (kameraets startposisjon) – kameraet flytter seg ved scroll
+    const visH = 2 * cameraZ * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
     const visW = visH * state.aspect;
     const span = visW * 1.12; // litt utenfor kantene
     const step = span / count;

@@ -57,7 +57,8 @@ export async function createStage({ fov = 45, cameraZ = 10 } = {}) {
     reducedMotion: reduceQuery.matches,
     pointer: { x: 0, y: 0, active: false }, // -1..1, myk (lerp)
     pointerTarget: { x: 0, y: 0 },
-    scroll: 0, // 0 = toppen av verten, 1 = verten er scrollet ut
+    scroll: 0, // 0 = toppen, 1 = effekten er fullført (se updateScroll)
+    scrollable: false,
     time: 0,
   };
 
@@ -79,6 +80,7 @@ export async function createStage({ fov = 45, cameraZ = 10 } = {}) {
     const w = Math.max(1, host.clientWidth);
     const h = Math.max(1, host.clientHeight);
     updateFlags();
+    updateScroll();
     state.width = w;
     state.height = h;
     state.aspect = w / h;
@@ -90,10 +92,20 @@ export async function createStage({ fov = 45, cameraZ = 10 } = {}) {
     renderOnce();
   }
 
+  // Scroll-fremdrift 0..1, tilpasset hvor langt siden faktisk kan rulles: med få
+  // setlister er siden kort, så effekten fullføres over den avstanden som finnes
+  // (men aldri over mer enn 60 % av vertens høyde).
   function updateScroll() {
     if (!host) return;
     const r = host.getBoundingClientRect();
-    state.scroll = Math.min(1, Math.max(0, -r.top / Math.max(1, r.height)));
+    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    state.scrollable = maxScroll >= 24;
+    if (!state.scrollable) {
+      state.scroll = 0;
+      return;
+    }
+    const distance = Math.max(1, Math.min(r.height * 0.6, maxScroll));
+    state.scroll = Math.min(1, Math.max(0, -r.top / distance));
   }
 
   const onPointer = (e) => {

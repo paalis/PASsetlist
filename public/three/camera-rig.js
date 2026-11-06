@@ -4,10 +4,13 @@
 //
 //   stage.add(createCameraRig({ strengthX: 0.8, strengthY: 0.45 }));
 //
-// Av på mobil/touch og ved redusert bevegelse (kameraet glir da tilbake til midten).
+// Ved scroll flyr kameraet fremover (travel). Musparallaksen er av på mobil/touch,
+// og ved redusert bevegelse står kameraet helt stille.
 
-export function createCameraRig({ strengthX = 0.8, strengthY = 0.45, smoothing = 2.2, lookAtZ = -30 } = {}) {
-  const offset = { x: 0, y: 0 };
+const smoothstep = (t) => t * t * (3 - 2 * t);
+
+export function createCameraRig({ strengthX = 0.8, strengthY = 0.45, smoothing = 2.2, lookAtZ = -30, travel = 6 } = {}) {
+  const offset = { x: 0, y: 0, z: 0 };
   let base = null;
 
   return {
@@ -24,8 +27,13 @@ export function createCameraRig({ strengthX = 0.8, strengthY = 0.45, smoothing =
       const k = dt > 0 ? 1 - Math.exp(-dt * smoothing) : 1;
       offset.x += (tx - offset.x) * k;
       offset.y += (ty - offset.y) * k;
+      // Scroll: kameraet flyr fremover gjennom partiklene (ikke ved redusert bevegelse)
+      const tz = state.reducedMotion ? 0 : -smoothstep(state.scroll) * travel;
+      const kz = dt > 0 ? 1 - Math.exp(-dt * 6) : 1;
+      offset.z += (tz - offset.z) * kz;
       camera.position.x = base.x + offset.x;
       camera.position.y = base.y + offset.y;
+      camera.position.z = base.z + offset.z;
       camera.lookAt(0, 0, lookAtZ);
     },
     dispose() {},
