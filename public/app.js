@@ -389,7 +389,7 @@ function renderHome() {
       <div class="hero-grain" aria-hidden="true"></div>
       <div class="hero-content">
         <p class="hero-kicker">Setlister for band og artister</p>
-        <h1>Setlist Generator</h1>
+        <h1><span class="solid">Setlist</span><span class="outline">Generator</span></h1>
         <p class="hero-lead">Lim inn en Spotify-spilleliste og få en setlist du kan stokke om, notere i og ta med på scenen.</p>
         <div class="hero-actions">
           <button class="btn light big" id="newBtn">＋ Opprett ny setlist</button>
