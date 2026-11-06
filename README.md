@@ -1,4 +1,6 @@
-# Setlist Generator
+# Setlist Live
+
+Live: <https://setlistlive.vercel.app> (de gamle adressene setlistgenerator.vercel.app og passetlist.vercel.app virker fortsatt)
 
 Lag setlister fra Spotify-spillelister. Lim inn en lenke, så hentes tittel og artist
 for alle låtene, og du kan jobbe videre med listen.

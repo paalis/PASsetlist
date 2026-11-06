@@ -1,6 +1,6 @@
 // swift-tools-version: 5.9
 
-// Swift Playgrounds-prosjekt for Setlist Generator på iPad.
+// Swift Playgrounds-prosjekt for Setlist Live på iPad.
 // Åpne mappen «Setlist.swiftpm» i Swift Playgrounds-appen.
 
 import PackageDescription
@@ -13,9 +13,9 @@ let package = Package(
     ],
     products: [
         .iOSApplication(
-            name: "Setlist",
+            name: "Setlist Live",
             targets: ["AppModule"],
-            bundleIdentifier: "com.setlistgenerator.ipad",
+            bundleIdentifier: "com.setlistgenerator.ipad", // beholdes, ellers mister iPad-appen dataene sine
             teamIdentifier: "",
             displayVersion: "1.0",
             bundleVersion: "1",

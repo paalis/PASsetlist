@@ -1,5 +1,5 @@
 {
-  "name": "setlist-generator",
+  "name": "setlist-live",
   "version": "1.0.0",
   "private": true,
   "description": "Lag setlister fra Spotify-spillelister",

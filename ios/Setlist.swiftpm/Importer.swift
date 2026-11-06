@@ -7,7 +7,7 @@ struct ImportError: LocalizedError {
 
 enum Importer {
     /// Samme tjeneste som nettappen bruker for å lese Spotify-spillelister.
-    static let spotifyAPI = URL(string: "https://setlistgenerator.vercel.app/api/playlist")!
+    static let spotifyAPI = URL(string: "https://setlistlive.vercel.app/api/playlist")!
 
     private struct SpotifyResponse: Decodable {
         struct Track: Decodable {

@@ -1,13 +1,13 @@
 'use strict';
 
 /* =========================================================
-   Setlist Generator – setlister fra Spotify-spillelister
+   Setlist Live – setlister fra Spotify-spillelister
    Uten innlogging lagres data i nettleseren (localStorage).
    Med innlogging via kode (Firebase, se cloud.js) lagres alt i
    Firestore og deles mellom alle som bruker samme kode.
    ========================================================= */
 
-const STORAGE_KEY = 'passetlist.v1';
+const STORAGE_KEY = 'passetlist.v1'; // intern nøkkel – må ikke endres (lokale setlister ligger her)
 const app = document.getElementById('app');
 
 /* ---------- Lagring ---------- */
@@ -369,7 +369,7 @@ onScroll();
 /* ---------- Oversikt ---------- */
 
 function renderHome() {
-  document.title = 'Setlist Generator';
+  document.title = 'Setlist Live';
   const sorted = [...setlists].sort((a, b) => b.updatedAt - a.updatedAt);
 
   const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAI', 'JUN', 'JUL', 'AUG', 'SEP', 'OKT', 'NOV', 'DES'];
@@ -392,7 +392,7 @@ function renderHome() {
       <div class="hero-grain" aria-hidden="true"></div>
       <div class="hero-content">
         <p class="hero-kicker">Setlister for band og artister</p>
-        <h1><span class="solid">Setlist</span><span class="outline">Generator</span></h1>
+        <h1><span class="solid">Setlist</span><span class="outline">Live</span></h1>
         <p class="hero-lead">Slipp inn en Spotify-liste, så får du en setlist du kan rokke om på, rable notater i og ta med deg rett på scenen.</p>
         <div class="hero-actions">
           <button class="btn light big" id="newBtn">＋ Opprett ny setlist</button>
@@ -495,7 +495,7 @@ function renderHome() {
     const blob = new Blob([JSON.stringify(setlists, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `setlist-generator-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `setlist-live-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -653,7 +653,7 @@ async function ensureCover(sl) {
 let deckInfoOpen = false;
 
 function renderEditor(sl) {
-  document.title = `${sl.name || 'Setlist'} – Setlist Generator`;
+  document.title = `${sl.name || 'Setlist'} – Setlist Live`;
 
   app.innerHTML = `
     <div class="editor">
@@ -715,7 +715,7 @@ function renderEditor(sl) {
       sl[field] = e.target.value;
       touch(sl);
       if (field === 'date' || field === 'name' || field === 'venue') updateStats(sl);
-      if (field === 'name') document.title = `${sl.name || 'Setlist'} – Setlist Generator`;
+      if (field === 'name') document.title = `${sl.name || 'Setlist'} – Setlist Live`;
     });
   };
   document.getElementById('infoToggle').onclick = (e) => {
@@ -1047,7 +1047,7 @@ function asText(sl) {
 
 /* ---------- Utskrift med valg og forhåndsvisning ---------- */
 
-const PRINT_KEY = 'setlist-generator.print';
+const PRINT_KEY = 'setlist-generator.print'; // intern nøkkel fra før navnebyttet – beholdes
 const PRINT_DEFAULTS = {
   layout: 'stage', // stage | compact | columns
   orientation: 'portrait', // portrait | landscape

@@ -35,4 +35,4 @@ http
       res.end(buf);
     });
   })
-  .listen(PORT, () => console.log(`Setlist Generator kjører på http://localhost:${PORT}`));
+  .listen(PORT, () => console.log(`Setlist Live kjører på http://localhost:${PORT}`));

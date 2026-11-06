@@ -12,7 +12,7 @@
 import { firebaseConfig } from './firebase-config.js';
 
 const SDK = './vendor/firebase'; // Firebase JS SDK 10.12.2 (fra npm-pakken «firebase»)
-const CODE_KEY = 'setlist-generator.code';
+const CODE_KEY = 'setlist-generator.code'; // intern nøkkel fra før navnebyttet – beholdes
 const emit = (name, detail) => window.dispatchEvent(new CustomEvent(name, { detail }));
 
 export function normalizeCode(code) {
@@ -23,6 +23,8 @@ export function normalizeCode(code) {
 }
 
 async function hashCode(code) {
+  // NB: «setlist-generator:» er fra det gamle navnet og MÅ beholdes – endres det, peker
+  // alle bandkoder til nye, tomme områder i databasen og setlistene ser borte ut.
   const bytes = new TextEncoder().encode(`setlist-generator:${normalizeCode(code)}`);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
