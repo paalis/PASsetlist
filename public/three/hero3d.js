@@ -9,6 +9,7 @@
 
 import { createStage } from './stage.js';
 import { createEqualizer } from './equalizer.js';
+import { createParticleField } from './particles.js';
 
 let stage = null;
 let starting = null;
@@ -25,6 +26,7 @@ async function ensureStage() {
   const promise = (starting = (async () => {
     const s = await createStage({ fov: 45, cameraZ: 10 });
     if (!s) return null; // ingen WebGL: behold bare bakgrunnsbildet
+    s.add(createParticleField(s.THREE, { count: 4000, cameraZ: 10, fov: 45 })); // bakerst
     s.add(createEqualizer(s.THREE, { accent: cssAccent() }));
     if (starting === promise) stage = s;
     return s;
