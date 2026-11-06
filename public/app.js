@@ -385,14 +385,15 @@ function renderHome() {
 
   app.innerHTML = `
     <section class="hero">
-      <div class="hero-smoke" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-      <div class="hero-lights" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="hero-beams" aria-hidden="true">${'<i></i>'.repeat(14)}</div>
+      <div class="hero-flares" aria-hidden="true"><i></i><i></i><i></i></div>
       <div class="hero-crowd" aria-hidden="true"></div>
+      <div class="hero-grain" aria-hidden="true"></div>
       <div class="hero-content">
-        <span class="hero-rule" aria-hidden="true"></span>
-        <h1><span>Setlist</span><span class="ghost">Generator</span></h1>
-        <div class="wave" aria-hidden="true">${'<i></i>'.repeat(36)}</div>
-        <p class="tagline">Fra spilleliste til scene</p>
+        <p class="hero-kicker">Setlister for band og artister</p>
+        <h1>Setlist Generator</h1>
+        <p class="hero-lead">Lim inn en Spotify-spilleliste og få en setlist du kan stokke om, notere i og ta med på scenen.</p>
         <div class="hero-actions">
           <button class="btn light big" id="newBtn">＋ Opprett ny setlist</button>
           ${cloudEnabled && !cloudUser ? '<button class="btn outline big" id="heroSignIn">Logg inn med kode</button>' : ''}
