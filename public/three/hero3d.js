@@ -42,7 +42,7 @@ async function ensureStage() {
   const promise = (starting = (async () => {
     const s = await createStage({ fov: 45, cameraZ: 10 });
     if (!s) return null; // ingen WebGL: behold bare bakgrunnsbildet
-    s.add(createParticleField(s.THREE, { count: 4000, cameraZ: 10, fov: 45 })); // bakerst
+    s.add(createParticleField(s.THREE, { count: 4000, cameraZ: 10, fov: 45 })); // bakerst (2000 på mobil)
     s.add(createEqualizer(s.THREE, { accent: cssAccent() }));
     s.add(createCameraRig({ strengthX: 0.8, strengthY: 0.45, travel: 6 })); // musparallakse + scroll
     s.add(createScrollFade(s.canvas)); // canvaset tones ut mot «Mine setlister»
@@ -59,6 +59,11 @@ async function mount(hero) {
   if (!s || mine !== generation || !hero.isConnected) return;
   s.mount(hero, hero.querySelector('.hero-crowd-front'));
   hero.classList.add('has-3d');
+  // Mistet grafikkontekst: fjern 3D-laget og behold bare bildet
+  s.onContextLost = () => {
+    document.querySelector('.hero')?.classList.remove('has-3d');
+    leave();
+  };
 }
 
 function leave() {
@@ -81,3 +86,8 @@ window.addEventListener('hero:leave', leave);
 
 // app.js kan ha tegnet forsiden før denne modulen ble lastet
 mount(document.querySelector('.hero'));
+
+// For testing/feilsøking: gir tilgang til scenen (null når den ikke finnes)
+export function debugStage() {
+  return stage;
+}

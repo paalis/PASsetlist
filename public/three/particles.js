@@ -146,7 +146,12 @@ export function createParticleField(THREE, { count = 4000, cameraZ = 10, fov = 4
 
   return {
     object3d: points,
+    get visibleCount() {
+      return geometry.drawRange.count === Infinity ? count : Math.min(count, geometry.drawRange.count);
+    },
     resize(state, camera) {
+      // Mobil/smal skjerm: tegn bare halvparten (første halvdel er et jevnt, tilfeldig utvalg)
+      geometry.setDrawRange(0, state.mobile ? Math.floor(count / 2) : count);
       // Piksler per verdensenhet ved avstand 1 – gir riktig perspektivstørrelse
       material.uniforms.uScale.value = state.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
       material.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio || 1, 2);

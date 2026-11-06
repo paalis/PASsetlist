@@ -42,6 +42,16 @@ export async function createStage({ fov = 45, cameraZ = 10 } = {}) {
   canvas.className = 'stage-canvas';
   canvas.setAttribute('aria-hidden', 'true');
 
+  // Nettleseren kan miste grafikkonteksten (f.eks. på mobil i bakgrunnen).
+  // Da stopper vi og sier fra, så hero kan falle tilbake til bare bildet.
+  let contextLost = false;
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    contextLost = true;
+    syncLoop();
+    stage.onContextLost?.();
+  });
+
   const scene = new T.Scene();
   const camera = new T.PerspectiveCamera(fov, 1, 0.1, 200);
   camera.position.set(0, 0, cameraZ);
@@ -153,17 +163,17 @@ export async function createStage({ fov = 45, cameraZ = 10 } = {}) {
     state.pointer.x += (state.pointerTarget.x - state.pointer.x) * k;
     state.pointer.y += (state.pointerTarget.y - state.pointer.y) * k;
     for (const el of elements) el.update?.(state.time, dt, state, camera);
-    renderer.render(scene, camera);
+    if (canvas.style.opacity !== '0') renderer.render(scene, camera); // ingen tegning når helt uttonet
   }
 
   function renderOnce() {
-    if (!host || running) return;
+    if (!host || running || contextLost) return;
     for (const el of elements) el.update?.(state.time, 0, state, camera);
     renderer.render(scene, camera);
   }
 
   function syncLoop() {
-    const shouldRun = !!host && visible && inView && !state.reducedMotion && elements.size > 0;
+    const shouldRun = !!host && !contextLost && visible && inView && !state.reducedMotion && elements.size > 0;
     if (shouldRun && !running) {
       running = true;
       last = performance.now();
