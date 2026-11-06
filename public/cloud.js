@@ -55,7 +55,7 @@ async function start() {
     import(`${SDK}/firebase-app.js`),
     import(`${SDK}/firebase-firestore.js`),
   ]);
-  const { initializeFirestore, persistentLocalCache, collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, Bytes } = fs;
+  const { initializeFirestore, persistentLocalCache, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, query, where, Bytes } = fs;
 
   const fbApp = initializeApp(firebaseConfig);
   let db;
@@ -109,6 +109,9 @@ async function start() {
     uploadFile,
     fetchFile,
     deleteFile,
+    loadAnnotations,
+    saveAnnotations,
+    watchAnnotations,
   };
 
   /* ---------- Filer (noter, tekst, akkordskjema) ----------
@@ -146,9 +149,39 @@ async function start() {
     return blob;
   }
 
+  /* ---------- Pencil-notater ----------
+     Ett dokument per side: spaces/{hash}/annotations/{filId}_{side}
+     { fileId, page, strokes: [{ t, c, w, p: [x, y, trykk, ...] }], updatedAt }
+     Koordinatene er normalisert (0–1) til sidens bredde/høyde. */
+  const annRef = (fileId, page) => doc(db, 'spaces', space, 'annotations', `${fileId}_${page}`);
+
+  async function loadAnnotations(fileId, page) {
+    if (!space) return [];
+    const snap = await getDoc(annRef(fileId, page));
+    return snap.exists() ? snap.data().strokes || [] : [];
+  }
+
+  async function saveAnnotations(fileId, page, strokes) {
+    if (!space) throw new Error('Logg inn med kode for å lagre notater.');
+    if (!strokes.length) return deleteDoc(annRef(fileId, page));
+    return setDoc(annRef(fileId, page), clean({ fileId, page, strokes, updatedAt: Date.now() }));
+  }
+
+  /** Sanntid: kaller cb(strokes) når andre i bandet endrer notatene på siden. */
+  function watchAnnotations(fileId, page, cb) {
+    if (!space) return () => {};
+    return onSnapshot(annRef(fileId, page), (snap) => cb(snap.exists() ? snap.data().strokes || [] : []), () => {});
+  }
+
+  async function deleteAnnotationsFor(fileId) {
+    const snap = await getDocs(query(collection(db, 'spaces', space, 'annotations'), where('fileId', '==', fileId)));
+    await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+  }
+
   async function deleteFile(id) {
     if (!space) return;
     fileCache.delete(id);
+    deleteAnnotationsFor(id).catch(() => {});
     const info = await getDoc(fileRef(id));
     const chunks = info.exists() ? info.data().chunks : 0;
     await deleteDoc(fileRef(id));

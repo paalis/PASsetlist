@@ -682,7 +682,8 @@ function renderEditor(sl) {
         </label>
         </div>
         <div class="deck-actions">
-          <button class="btn square primary" id="bookBtn">Notehefte (PDF)</button>
+          <button class="btn square primary" id="stageBtn">▶ Scenemodus</button>
+          <button class="btn square" id="bookBtn">Notehefte (PDF)</button>
           <button class="btn square" id="printBtn">Skriv ut</button>
           <button class="btn square" id="copyBtn">Kopier som tekst</button>
           <button class="btn square" id="addSpotify">＋ Fra Spotify</button>
@@ -762,6 +763,7 @@ function renderEditor(sl) {
   };
 
   document.getElementById('bookBtn').onclick = () => buildSongbook(sl);
+  document.getElementById('stageBtn').onclick = () => openNotes(sl);
 
   document.getElementById('printBtn').onclick = () => openPrintDialog(sl);
 
@@ -1456,13 +1458,8 @@ filesDialog.addEventListener('click', async (e) => {
   const f = item.files[idx];
 
   if (btn.dataset.fact === 'open') {
-    const view = openBlobLater(f.name);
-    try {
-      view.show(await window.cloud.fetchFile(f.id));
-    } catch (err) {
-      view.close();
-      renderFilesDialog(err.message);
-    }
+    filesDialog.close();
+    openNotes(sl, f.id);
   } else if (btn.dataset.fact === 'up' && idx > 0) {
     [item.files[idx - 1], item.files[idx]] = [item.files[idx], item.files[idx - 1]];
     touch(sl);
@@ -1478,6 +1475,90 @@ filesDialog.addEventListener('click', async (e) => {
 document.getElementById('filesClose').onclick = () => filesDialog.close();
 
 /* ---------- Notehefte: alle filer samlet i setlistens rekkefølge ---------- */
+
+/* ---------- Notevisning (scenemodus med Pencil-notater) ---------- */
+
+const A4PT = [595.28, 841.89];
+
+// Sideoppsett for tekstfiler – brukes både i notevisningen og i noteheftet, så
+// Pencil-notater havner på samme sted begge steder. y er PDF-koordinater (fra bunnen).
+function textLayout(text) {
+  const lines = String(text).replace(/\t/g, '    ').split(/\r?\n/);
+  const pages = [];
+  let page = { title: true, rows: [] };
+  let y = A4PT[1] - 60 - 28;
+  for (const line of lines) {
+    if (y < 40) {
+      pages.push(page);
+      page = { title: false, rows: [] };
+      y = A4PT[1] - 50;
+    }
+    page.rows.push({ text: line, y });
+    y -= 14;
+  }
+  pages.push(page);
+  return pages;
+}
+
+async function openNotes(sl, startFileId = null) {
+  if (!window.cloud?.signedIn) {
+    toast('Logg inn med kode for å se noter og skrive notater.');
+    return;
+  }
+  if (!sl.items.some((i) => i.type === 'song' && (i.files || []).length)) {
+    toast('Ingen låter har noter ennå – trykk på notesymbolet på en låt for å legge til.');
+    return;
+  }
+  try {
+    const { openViewer } = await import('./notes/viewer.js');
+    await openViewer({ sl, startFileId, fileKind, textLayout });
+  } catch (err) {
+    console.error(err);
+    toast(`Klarte ikke å åpne notevisningen: ${err.message}`);
+  }
+}
+
+// Tegner lagrede Pencil-notater på en side i noteheftet.
+// rect = området siden/bildet dekker, i PDF-koordinater (x, y = nederste kant).
+async function drawNotesOnPdf(page, fileId, pageIndex, rect, lib) {
+  let strokes = [];
+  try {
+    strokes = await window.cloud.loadAnnotations(fileId, pageIndex);
+  } catch (_) {
+    return;
+  }
+  const { rgb, LineCapStyle } = lib;
+  const toRgb = (hex) => {
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '') || [0, '11', '11', '11'];
+    return rgb(parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255);
+  };
+  for (const st of strokes) {
+    const p = st.p || [];
+    if (p.length < 3) continue;
+    const color = toRgb(st.c);
+    if (st.t === 'marker') {
+      let d = '';
+      for (let i = 0; i < p.length; i += 3) d += `${i ? 'L' : 'M'}${(p[i] * rect.w).toFixed(2)} ${(p[i + 1] * rect.h).toFixed(2)} `;
+      if (p.length === 3) d += `L${(p[0] * rect.w + 0.01).toFixed(2)} ${(p[1] * rect.h).toFixed(2)}`;
+      page.drawSvgPath(d, { x: rect.x, y: rect.y + rect.h, borderColor: color, borderWidth: st.w * rect.w, borderOpacity: 0.38, borderLineCap: LineCapStyle.Round });
+      continue;
+    }
+    const X = (i) => rect.x + p[i] * rect.w;
+    const Y = (i) => rect.y + rect.h - p[i + 1] * rect.h;
+    if (p.length === 3) {
+      page.drawCircle({ x: X(0), y: Y(0), size: (st.w * rect.w * (0.4 + 0.8 * p[2])) / 2, color });
+    }
+    for (let i = 3; i < p.length; i += 3) {
+      page.drawLine({
+        start: { x: X(i - 3), y: Y(i - 3) },
+        end: { x: X(i), y: Y(i) },
+        thickness: st.w * rect.w * (0.4 + 0.8 * ((p[i - 1] + p[i + 2]) / 2)),
+        color,
+        lineCap: LineCapStyle.Round,
+      });
+    }
+  }
+}
 
 let pdfLib = null;
 const loadPdfLib = () => (pdfLib ||= import('./vendor/pdf-lib/pdf-lib.esm.min.js'));
@@ -1505,7 +1586,8 @@ async function buildSongbook(sl) {
   btn.textContent = 'Lager notehefte …';
 
   try {
-    const { PDFDocument, StandardFonts, rgb } = await loadPdfLib();
+    const lib = await loadPdfLib();
+    const { PDFDocument, StandardFonts, rgb } = lib;
     const doc = await PDFDocument.create();
     doc.setTitle(`${sl.name || 'Setlist'} – notehefte`);
     const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -1574,25 +1656,30 @@ async function buildSongbook(sl) {
         if (kind === 'pdf') {
           const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
           const pages = await doc.copyPages(src, src.getPageIndices());
-          pages.forEach((p) => (doc.addPage(p), label(p, song)));
+          for (const [pi, p] of pages.entries()) {
+            doc.addPage(p);
+            const box = p.getCropBox();
+            await drawNotesOnPdf(p, f.id, pi, { x: box.x, y: box.y, w: box.width, h: box.height }, lib);
+            label(p, song);
+          }
         } else if (kind === 'image') {
           const img = f.type === 'image/png' ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
           const p = doc.addPage(A4);
           const s = Math.min((A4[0] - 40) / img.width, (A4[1] - 50) / img.height);
-          p.drawImage(img, { x: (A4[0] - img.width * s) / 2, y: A4[1] - 20 - img.height * s, width: img.width * s, height: img.height * s });
+          const rect = { x: (A4[0] - img.width * s) / 2, y: A4[1] - 20 - img.height * s, w: img.width * s, h: img.height * s };
+          p.drawImage(img, { x: rect.x, y: rect.y, width: rect.w, height: rect.h });
+          await drawNotesOnPdf(p, f.id, 0, rect, lib);
           label(p, song);
         } else if (kind === 'text') {
-          const lines = new TextDecoder().decode(bytes).replace(/\t/g, '    ').split(/\r?\n/);
-          let p = doc.addPage(A4);
-          let ty = A4[1] - 60;
-          p.drawText(safe(bold, `${song.n}. ${song.item.title}`), { x: 50, y: ty, size: 16, font: bold });
-          ty -= 28;
-          for (const line of lines) {
-            if (ty < 40) label(p, song), (p = doc.addPage(A4)), (ty = A4[1] - 50);
-            p.drawText(safe(mono, line).slice(0, 90), { x: 50, y: ty, size: 10.5, font: mono });
-            ty -= 14;
+          // Samme oppsett som i notevisningen (textLayout), så notatene havner riktig
+          const layout = textLayout(new TextDecoder().decode(bytes));
+          for (const [pi, tp] of layout.entries()) {
+            const p = doc.addPage(A4);
+            if (tp.title) p.drawText(safe(bold, `${song.n}. ${song.item.title}`), { x: 50, y: A4[1] - 60, size: 16, font: bold });
+            for (const row of tp.rows) p.drawText(safe(mono, row.text).slice(0, 90), { x: 50, y: row.y, size: 10.5, font: mono });
+            await drawNotesOnPdf(p, f.id, pi, { x: 0, y: 0, w: A4[0], h: A4[1] }, lib);
+            label(p, song);
           }
-          label(p, song);
         }
         fileCount++;
       }

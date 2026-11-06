@@ -18,6 +18,16 @@ service cloud.firestore {
         && request.resource.data.items.size() <= 500;
     }
 
+    // Pencil-notater: ett dokument per side i en fil
+    match /spaces/{space}/annotations/{annId} {
+      allow get, list, delete: if validSpace(space);
+      allow create, update: if validSpace(space)
+        && request.resource.data.fileId is string
+        && request.resource.data.page is int
+        && request.resource.data.strokes is list
+        && request.resource.data.strokes.size() <= 3000;
+    }
+
     // Filer (tekst, noter, akkordskjema): info-dokument + data delt i biter
     match /spaces/{space}/files/{fileId} {
       allow get, delete: if validSpace(space);
