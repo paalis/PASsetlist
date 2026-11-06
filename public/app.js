@@ -624,6 +624,9 @@ form.addEventListener('submit', async (e) => {
 
 /* ---------- Editor ---------- */
 
+// Infopanelet i redigeringen er sammenfoldet på telefon; husk valget mens appen er åpen
+let deckInfoOpen = false;
+
 function renderEditor(sl) {
   document.title = `${sl.name || 'Setlist'} – Setlist Generator`;
 
@@ -634,6 +637,12 @@ function renderEditor(sl) {
         <div class="deck-vinyl" aria-hidden="true">
           <div class="vinyl xl"><span class="vinyl-label" id="deckLabel"></span></div>
         </div>
+        <button type="button" class="info-toggle" id="infoToggle" aria-expanded="${deckInfoOpen}" aria-controls="deckInfo">
+          <span class="info-label">Info</span>
+          <span class="info-summary" id="infoSummary"></span>
+          <span class="info-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="deck-info${deckInfoOpen ? ' open' : ''}" id="deckInfo">
         <dl class="spec">
           <div><dt>Dato</dt><dd><input class="spec-input" id="slDate" type="date" value="${esc(sl.date)}" aria-label="Dato" /></dd></div>
           <div><dt>Sted</dt><dd><input class="spec-input" id="slVenue" value="${esc(sl.venue)}" placeholder="Legg til sted" aria-label="Sted" /></dd></div>
@@ -646,6 +655,7 @@ function renderEditor(sl) {
           <span>Notater</span>
           <textarea class="plain" id="slNotes" rows="2" placeholder="Generelle notater">${esc(sl.notes)}</textarea>
         </label>
+        </div>
         <div class="deck-actions">
           <button class="btn square primary" id="bookBtn">Notehefte (PDF)</button>
           <button class="btn square" id="printBtn">Skriv ut</button>
@@ -679,10 +689,16 @@ function renderEditor(sl) {
     document.getElementById(id).addEventListener('input', (e) => {
       sl[field] = e.target.value;
       touch(sl);
-      if (field === 'date' || field === 'name') updateStats(sl);
+      if (field === 'date' || field === 'name' || field === 'venue') updateStats(sl);
       if (field === 'name') document.title = `${sl.name || 'Setlist'} – Setlist Generator`;
     });
   };
+  document.getElementById('infoToggle').onclick = (e) => {
+    deckInfoOpen = !deckInfoOpen;
+    e.currentTarget.setAttribute('aria-expanded', deckInfoOpen);
+    document.getElementById('deckInfo').classList.toggle('open', deckInfoOpen);
+  };
+
   bind('slName', 'name');
   bind('slDate', 'date');
   bind('slVenue', 'venue');
@@ -742,6 +758,7 @@ function updateStats(sl) {
   const files = songs.reduce((n, i) => n + (i.files || []).length, 0);
   const withFiles = songs.filter((i) => (i.files || []).length).length;
   set('specSongs', `${songs.length}`);
+  set('infoSummary', [sl.date && fmtDate(sl.date), sl.venue, `${songs.length} låter`].filter(Boolean).join(' · '));
   set('specTime', t ? fmtTotal(t) : '–');
   set('specOpener', songs[0]?.title || '–');
   set('specFiles', files ? `${files} filer · ${withFiles}/${songs.length} låter` : 'Ingen ennå');
