@@ -1014,6 +1014,8 @@ app.addEventListener('pointerdown', (e) => {
     sl.items = order.map((id) => byId.get(id)).filter(Boolean);
     touch(sl);
     renderSongs(sl);
+    // Ingen rad skal ha fokus eller markering etter at man har sluppet
+    if (document.activeElement && list.contains(document.activeElement)) document.activeElement.blur();
   };
 
   scrollTimer = setInterval(autoScroll, 16);

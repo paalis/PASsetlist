@@ -151,7 +151,7 @@ main { max-width: 1280px; margin: 0 auto; padding: 0 28px 96px; }
   border: 0; border-radius: 8px; background: transparent;
   color: var(--muted); cursor: pointer; font-size: 15px;
 }
-.icon-btn:hover { background: var(--surface-3); color: var(--text); }
+
 .icon-btn.danger:hover { color: var(--danger); }
 
 .linkish {
@@ -454,7 +454,7 @@ textarea.plain:focus, input.plain:focus { outline: none; border-color: var(--acc
   padding: 6px 4px; border-bottom: 1px solid var(--line);
   transition: background 0.15s;
 }
-.song:hover { background: rgba(255, 255, 255, 0.025); }
+
 .song:focus-within { background: rgba(255, 61, 61, 0.04); }
 .song.dragging {
   position: relative; z-index: 3; border-radius: 8px; border-bottom-color: transparent;
@@ -472,7 +472,7 @@ textarea.plain:focus, input.plain:focus { outline: none; border-color: var(--acc
   cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
   -webkit-touch-callout: none; color: #4b4552;
 }
-.handle:hover { background: var(--surface-3); color: var(--text); }
+
 .dragging .handle { cursor: grabbing; }
 
 .num { text-align: right; font-weight: 800; font-size: 17px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--accent); }
@@ -482,7 +482,7 @@ textarea.plain:focus, input.plain:focus { outline: none; border-color: var(--acc
   border: 1px solid transparent; border-radius: 6px; background: transparent;
 }
 .song input::placeholder { color: #4d4753; }
-.song input:hover { border-color: var(--border); }
+
 .song input:focus { outline: none; border-color: var(--accent); background: var(--bg); }
 .song input.title { font-weight: 650; font-size: 15.5px; }
 .song input.artist, .song input.notes { color: var(--muted); }
@@ -496,7 +496,7 @@ textarea.plain:focus, input.plain:focus { outline: none; border-color: var(--acc
   position: relative; display: grid; place-items: center; width: 36px; height: 34px; padding: 0;
   border: 1px solid transparent; border-radius: 8px; background: transparent; color: #4f4956; cursor: pointer;
 }
-.files-btn:hover { background: var(--surface-3); color: var(--text); }
+
 .files-btn.has { color: var(--accent); background: var(--accent-soft); border-color: rgba(255, 61, 61, 0.3); }
 .files-btn .badge {
   position: absolute; top: 1px; right: 1px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 999px;
@@ -777,3 +777,13 @@ textarea.plain:focus, input.plain:focus { outline: none; border-color: var(--acc
 /* Etiketten holder seg stille (lesbar dato) mens platen snurrer */
 .vinyl.xl .vinyl-label { animation: spin 18s linear infinite reverse; }
 @media (prefers-reduced-motion: reduce) { .vinyl.xl .vinyl-label { animation: none; } }
+
+/* Hover bare med mus/styreflate – på touch (iOS) «henger» hover igjen på det
+   elementet som ligger under fingeren, f.eks. etter dra-og-slipp. */
+@media (hover: hover) and (pointer: fine) {
+  .icon-btn:hover { background: var(--surface-3); color: var(--text); }
+  .song:hover { background: rgba(255, 255, 255, 0.025); }
+  .handle:hover { background: var(--surface-3); color: var(--text); }
+  .song input:hover { border-color: var(--border); }
+  .files-btn:hover { background: var(--surface-3); color: var(--text); }
+}
