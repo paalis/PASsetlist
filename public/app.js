@@ -1079,44 +1079,87 @@ function savePrintOptions(o) {
   } catch (_) {}
 }
 
-// Selve arket – brukes både i forhåndsvisningen og ved utskrift
-function sheetHTML(sl, o, fs) {
+// Radene i setlisten som HTML (nummereringen fortsetter på tvers av sider)
+function sheetRows(sl, o) {
   let n = 0;
-  const sub = [sl.date && fmtDate(sl.date), sl.venue].filter(Boolean).map(esc).join(' · ');
-  const rows = sl.items
-    .map((i) => {
-      if (i.type === 'break') {
-        return o.breaks ? `<li class="brk"><span>${esc(i.title || 'Pause')}</span></li>` : '';
-      }
-      n++;
-      const meta = [
-        o.key && i.key ? `<span class="k">${esc(i.key)}</span>` : '',
-        o.artist && i.artist ? `<span class="a">${esc(i.artist)}</span>` : '',
-        o.notes && i.notes ? `<span class="x">${esc(i.notes)}</span>` : '',
-      ].join('');
-      return `<li>
+  const rows = [];
+  for (const i of sl.items) {
+    if (i.type === 'break') {
+      if (o.breaks) rows.push(`<li class="brk"><span>${esc(i.title || 'Pause')}</span></li>`);
+      continue;
+    }
+    n++;
+    const meta = [
+      o.key && i.key ? `<span class="k">${esc(i.key)}</span>` : '',
+      o.artist && i.artist ? `<span class="a">${esc(i.artist)}</span>` : '',
+      o.notes && i.notes ? `<span class="x">${esc(i.notes)}</span>` : '',
+    ].join('');
+    rows.push(`<li>
         ${o.numbers ? `<span class="n">${n}</span>` : ''}
         <span class="body"><span class="t">${esc(i.title || '–')}</span>${meta}</span>
         ${o.duration && i.durationMs ? `<span class="d">${fmtDuration(i.durationMs)}</span>` : ''}
-      </li>`;
-    })
-    .join('');
+      </li>`);
+  }
+  return rows;
+}
+
+// Én A4-side. Overskriften står på første side, total spilletid på siste,
+// og sidetall nederst når det er flere sider.
+function pageHTML(sl, o, fs, { rows, first = true, last = true, pageNo = 1, pages = 1 }) {
+  const sub = [sl.date && fmtDate(sl.date), sl.venue].filter(Boolean).map(esc).join(' · ');
   const t = totalMs(sl);
-  const classes = [`sheet`, `layout-${o.layout}`, `theme-${o.theme}`, `orient-${o.orientation}`, o.fit ? 'fit' : '', o.upper ? 'upper' : '']
+  const classes = ['sheet', `layout-${o.layout}`, `theme-${o.theme}`, `orient-${o.orientation}`, o.upper ? 'upper' : '']
     .filter(Boolean)
     .join(' ');
   return `
     <div class="${classes}" style="--fs:${fs}">
       <div class="sheet-inner">
         ${
-          o.header
+          o.header && first
             ? `<header class="sheet-head"><h1>${esc(sl.name || 'Setlist')}</h1>${sub ? `<div class="sheet-sub">${sub}</div>` : ''}</header>`
             : ''
         }
-        <ol class="sheet-list">${rows}</ol>
-        ${o.total ? `<footer class="sheet-foot">${songCount(sl)} låter${t ? ` · ${fmtTotal(t)}` : ''}</footer>` : ''}
+        ${!first && o.header ? `<div class="sheet-cont">${esc(sl.name || 'Setlist')} – fortsetter</div>` : ''}
+        <ol class="sheet-list">${rows.join('')}</ol>
+        ${o.total && last ? `<footer class="sheet-foot">${songCount(sl)} låter${t ? ` · ${fmtTotal(t)}` : ''}</footer>` : ''}
       </div>
+      ${pages > 1 ? `<div class="sheet-pageno">Side ${pageNo} av ${pages}</div>` : ''}
     </div>`;
+}
+
+// Får innholdet plass på én side? (måler et ferdig tegnet ark)
+function sheetFits(sheet) {
+  const inner = sheet.querySelector('.sheet-inner');
+  const cs = getComputedStyle(sheet);
+  const roomH = sheet.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 2;
+  const roomW = sheet.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + 1;
+  return inner.scrollHeight <= roomH && inner.scrollWidth <= roomW;
+}
+
+// Deler radene i ekte sider: fyller hver side til neste rad ikke får plass.
+// Måles i et usynlig område med samme stil, så sidene blir like i forhåndsvisning og utskrift.
+function paginate(sl, o, fs) {
+  const rows = sheetRows(sl, o);
+  const measure = document.createElement('div');
+  measure.className = 'print-measure';
+  document.body.appendChild(measure);
+  const fits = (slice, first, last) => {
+    measure.innerHTML = pageHTML(sl, o, fs, { rows: slice, first, last, pages: 2 });
+    return sheetFits(measure.firstElementChild);
+  };
+  const pages = [];
+  let start = 0;
+  do {
+    let end = start;
+    // Legg til rader så lenge siden har plass (minst én rad per side)
+    while (end < rows.length && (end === start || fits(rows.slice(start, end + 1), start === 0, end + 1 === rows.length))) end++;
+    pages.push(rows.slice(start, end));
+    start = end;
+  } while (start < rows.length);
+  // Total spilletid på siste side – får den ikke plass, flyttes den til en egen side
+  if (o.total && !fits(pages[pages.length - 1], pages.length === 1, true)) pages.push([]);
+  measure.remove();
+  return pages;
 }
 
 const printDialog = document.getElementById('printDialog');
@@ -1150,6 +1193,8 @@ function readPrintOptions() {
   return o;
 }
 
+let printPages = [[]];
+
 function updatePrintPreview() {
   if (!printTarget) return;
   const o = readPrintOptions();
@@ -1157,18 +1202,14 @@ function updatePrintPreview() {
   printForm.querySelector('[name=size]').disabled = o.fit;
   document.getElementById('sizeValue').textContent = o.fit ? 'Automatisk' : `${o.size} %`;
 
-  printPreview.innerHTML = sheetHTML(printTarget, o, o.fit ? 1 : o.size / 100);
-  const sheet = printPreview.querySelector('.sheet');
-  const inner = sheet.querySelector('.sheet-inner');
-
-  // Tilpass til én side: finn største skriftskala som får plass
   if (o.fit) {
-    const cs = getComputedStyle(sheet);
-    const roomH = sheet.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 2;
-    const roomW = sheet.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + 1;
+    // Tilpass til én side: finn største skriftskala som får plass
+    const rows = sheetRows(printTarget, o);
+    printPreview.innerHTML = pageHTML(printTarget, o, 1, { rows });
+    const sheet = printPreview.querySelector('.sheet');
     const fits = (fs) => {
       sheet.style.setProperty('--fs', fs);
-      return inner.scrollHeight <= roomH && inner.scrollWidth <= roomW;
+      return sheetFits(sheet);
     };
     let lo = 0.3;
     let hi = o.layout === 'stage' ? 2.2 : 1.8;
@@ -1179,37 +1220,35 @@ function updatePrintPreview() {
       else hi = mid;
     }
     printFs = Math.floor(lo * 100) / 100;
-    sheet.style.setProperty('--fs', printFs);
+    printPages = [rows];
   } else {
     printFs = o.size / 100;
+    printPages = paginate(printTarget, o, printFs);
   }
 
-  // A4-mål i CSS-piksler, og høyden det er plass til tekst på per side (14 mm marg oppe og nede)
+  // Tegn hver side som et eget A4-ark, skalert til forhåndsvisningen
   const MM = 96 / 25.4;
   const landscape = o.orientation === 'landscape';
   const pageW = (landscape ? 297 : 210) * MM;
   const pageH = (landscape ? 210 : 297) * MM;
-  const contentH = pageH - 28 * MM;
-  const pages = o.fit ? 1 : Math.max(1, Math.ceil((inner.scrollHeight - 1) / contentH));
-
-  // Fast skala per A4-side, så tekststørrelsen i forhåndsvisningen faktisk endrer seg.
-  // Flere sider vises under hverandre (rull i forhåndsvisningen), med sideskift markert.
   const box = printPreview.parentElement;
-  const roomY = window.innerWidth > 760 ? window.innerHeight - 150 : Infinity; // hele siden synlig på større skjermer
+  const roomY = window.innerWidth > 760 ? window.innerHeight - 150 : Infinity; // en hel side synlig på større skjermer
   const scale = Math.min(1, (box.clientWidth - 2) / pageW, roomY / pageH);
-  sheet.style.transform = `scale(${scale})`;
-  printPreview.style.width = `${pageW * scale}px`;
-  printPreview.style.height = `${Math.max(pageH, o.fit ? pageH : sheet.offsetHeight) * scale}px`;
-  for (let k = 1; k < pages; k++) {
-    const mark = document.createElement('div');
-    mark.className = 'page-break';
-    mark.style.top = `${(14 * MM + k * contentH) * scale}px`;
-    mark.dataset.label = `Side ${k + 1}`;
-    printPreview.appendChild(mark);
-  }
+  const count = printPages.length;
+  printPreview.innerHTML = printPages
+    .map(
+      (rows, i) => `
+      <div class="print-page" style="width:${pageW * scale}px;height:${pageH * scale}px">
+        ${pageHTML(printTarget, o, printFs, { rows, first: i === 0, last: i === count - 1, pageNo: i + 1, pages: count })}
+      </div>`
+    )
+    .join('');
+  printPreview.querySelectorAll('.sheet').forEach((sh) => (sh.style.transform = `scale(${scale})`));
+  printPreview.style.width = '';
+  printPreview.style.height = '';
 
   document.getElementById('printInfo').textContent =
-    `A4 ${landscape ? 'liggende' : 'stående'} · ${pages} ${pages === 1 ? 'side' : 'sider'}` +
+    `A4 ${landscape ? 'liggende' : 'stående'} · ${count} ${count === 1 ? 'side' : 'sider'}` +
     (o.fit ? ` · skrift ${Math.round(printFs * 100)} %` : '');
 }
 
@@ -1221,11 +1260,12 @@ document.getElementById('printCancel').onclick = () => printDialog.close();
 printForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const o = readPrintOptions();
-  document.getElementById('stage').innerHTML = sheetHTML(printTarget, o, printFs);
-  // Én side: arket fyller hele A4 selv. Flere sider: nettleseren deler opp, så margene legges på hver side.
-  document.getElementById('pageStyle').textContent = o.fit
-    ? `@page { size: A4 ${o.orientation}; margin: 0; }`
-    : `@page { size: A4 ${o.orientation}; margin: 14mm 16mm; }`;
+  const count = printPages.length;
+  // Nøyaktig de samme sidene som i forhåndsvisningen – hvert ark er én A4-side
+  document.getElementById('stage').innerHTML = printPages
+    .map((rows, i) => pageHTML(printTarget, o, printFs, { rows, first: i === 0, last: i === count - 1, pageNo: i + 1, pages: count }))
+    .join('');
+  document.getElementById('pageStyle').textContent = `@page { size: A4 ${o.orientation}; margin: 0; }`;
   printDialog.close();
   window.print();
 });
