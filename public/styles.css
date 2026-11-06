@@ -90,7 +90,18 @@ body.on-home:not(.scrolled) .topbar {
 .brand .solid { color: #f6f3ef; text-shadow: 0.06em 0.06em 0 var(--accent); }
 .brand .outline { color: transparent; -webkit-text-stroke: 1px rgba(246, 243, 239, 0.9); }
 @supports not (-webkit-text-stroke: 1px #000) { .brand .outline { color: rgba(246, 243, 239, 0.5); } }
-.brand:hover .outline { -webkit-text-stroke-color: var(--accent); }
+.brand .solid, .brand .outline { transition: transform 0.2s ease, text-shadow 0.2s ease, -webkit-text-stroke-color 0.2s ease; }
+/* Hover/fokus: «SETLIST» løftes litt og den røde skyggen blir dypere, «LIVE» får rødt omriss */
+.brand:hover .solid, .brand:focus-visible .solid {
+  transform: translate(-0.04em, -0.04em);
+  text-shadow: 0.1em 0.1em 0 var(--accent);
+}
+.brand:hover .outline, .brand:focus-visible .outline { -webkit-text-stroke-color: var(--accent); }
+.brand:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  .brand .solid, .brand .outline { transition: none; }
+  .brand:hover .solid, .brand:focus-visible .solid { transform: none; }
+}
 
 .account { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .code-chip {
