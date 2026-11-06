@@ -50,3 +50,23 @@ test('extractFromEmbedHtml leser tittel og artist fra embed-siden', () => {
 test('extractFromEmbedHtml returnerer null for ukjent side', () => {
   assert.strictEqual(extractFromEmbedHtml('<html></html>'), null);
 });
+
+test('cover hentes fra embed-dataene (største bilde)', () => {
+  const { findCover, largestImage } = require('../lib/spotify');
+  assert.strictEqual(
+    findCover({ coverArt: { sources: [{ url: 'https://i.scdn.co/a64', width: 64 }, { url: 'https://i.scdn.co/a640', width: 640 }] } }),
+    'https://i.scdn.co/a640'
+  );
+  assert.strictEqual(
+    findCover({ visualIdentity: { image: [{ url: 'https://x/300', maxWidth: 300 }, { url: 'https://x/60', maxWidth: 60 }] } }),
+    'https://x/300'
+  );
+  assert.strictEqual(findCover({ trackList: [] }), '');
+  assert.strictEqual(largestImage(null), '');
+});
+
+test('extractFromEmbedHtml tar med cover', () => {
+  const entity = { name: 'Liste', coverArt: { sources: [{ url: 'https://i.scdn.co/c', width: 300 }] }, trackList: [{ title: 'A', subtitle: 'B', duration: 1000 }] };
+  const html = `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify({ props: { pageProps: { state: { data: { entity } } } } })}</script>`;
+  assert.strictEqual(extractFromEmbedHtml(html).cover, 'https://i.scdn.co/c');
+});

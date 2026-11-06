@@ -1,13 +1,17 @@
 'use strict';
-// Serverless-funksjon (Vercel): GET /api/playlist?url=<spotify-lenke>
-const { fetchPlaylist } = require('../lib/spotify');
+// Serverless-funksjon (Vercel):
+//   GET /api/playlist?url=<spotify-lenke>           -> { name, tracks, cover, ... }
+//   GET /api/playlist?url=<spotify-lenke>&cover=1   -> { cover } (bare coverbildet)
+const { fetchPlaylist, fetchCover } = require('../lib/spotify');
 
 module.exports = async function handler(req, res) {
-  const url = new URL(req.url, 'http://localhost').searchParams.get('url');
+  const params = new URL(req.url, 'http://localhost').searchParams;
+  const url = params.get('url');
+  const coverOnly = params.get('cover') === '1';
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Cache-Control', coverOnly ? 'public, max-age=86400' : 'no-store');
   try {
-    const data = await fetchPlaylist(url);
+    const data = coverOnly ? await fetchCover(url) : await fetchPlaylist(url);
     res.statusCode = 200;
     res.end(JSON.stringify(data));
   } catch (e) {

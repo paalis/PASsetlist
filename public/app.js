@@ -562,6 +562,7 @@ form.addEventListener('submit', async (e) => {
   let items = [];
   let name = form.name.value.trim();
   let spotifyUrl = '';
+  let cover = '';
 
   if (dialogMode === 'spotify') {
     const url = form.url.value.trim();
@@ -577,6 +578,7 @@ form.addEventListener('submit', async (e) => {
       items = data.tracks.map((t) => newSong(t));
       if (!name) name = data.name || '';
       spotifyUrl = url;
+      cover = safeCover(data.cover);
       if (!items.length) throw new Error('Spillelisten ser ut til å være tom.');
     } catch (err) {
       errorEl.textContent = `${err.message} Du kan også bruke «Lim inn tekst».`;
@@ -599,6 +601,7 @@ form.addEventListener('submit', async (e) => {
 
   if (dialogTarget) {
     dialogTarget.items.push(...items);
+    if (!dialogTarget.cover && cover) dialogTarget.cover = cover;
     touch(dialogTarget);
     renderEditor(dialogTarget);
     toast(`${items.length} låter lagt til`);
@@ -612,6 +615,7 @@ form.addEventListener('submit', async (e) => {
     venue: '',
     notes: '',
     spotifyUrl,
+    cover,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     items,
@@ -623,6 +627,27 @@ form.addEventListener('submit', async (e) => {
 });
 
 /* ---------- Editor ---------- */
+
+// Spotify-cover: bare https-bilder uten tegn som kan bryte CSS-en
+function safeCover(url) {
+  return typeof url === 'string' && /^https:\/\/[^\s"'()\\]+$/.test(url) ? url : '';
+}
+
+// Eldre setlister fra Spotify har ikke cover lagret – hent det én gang
+const coverRequested = new Set();
+async function ensureCover(sl) {
+  if (!sl.spotifyUrl || 'cover' in sl || coverRequested.has(sl.id)) return;
+  coverRequested.add(sl.id);
+  try {
+    const res = await fetch(`/api/playlist?cover=1&url=${encodeURIComponent(sl.spotifyUrl)}`);
+    const data = res.ok ? await res.json() : {};
+    sl.cover = safeCover(data.cover);
+  } catch (_) {
+    return; // prøv igjen neste gang (f.eks. uten nett)
+  }
+  touch(sl);
+  if (currentSetlist() === sl) updateStats(sl);
+}
 
 // Infopanelet i redigeringen er sammenfoldet på telefon; husk valget mens appen er åpen
 let deckInfoOpen = false;
@@ -741,6 +766,7 @@ function renderEditor(sl) {
   document.getElementById('printBtn').onclick = () => openPrintDialog(sl);
 
   renderSongs(sl);
+  ensureCover(sl);
 }
 
 function updateStats(sl) {
@@ -766,6 +792,10 @@ function updateStats(sl) {
   const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAI', 'JUN', 'JUL', 'AUG', 'SEP', 'OKT', 'NOV', 'DES'];
   const label = document.getElementById('deckLabel');
   if (label) {
+    const cover = safeCover(sl.cover);
+    label.classList.toggle('has-cover', !!cover);
+    if (cover) label.style.setProperty('--cover', `url("${cover}")`);
+    else label.style.removeProperty('--cover');
     label.innerHTML = m
       ? `<b>${Number(m[2])}</b><small>${months[Number(m[1]) - 1]}</small>`
       : `<b>${esc((sl.name || 'S').trim().charAt(0).toUpperCase())}</b><small>SETLIST</small>`;
