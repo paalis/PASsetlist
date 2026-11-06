@@ -211,6 +211,22 @@ main { max-width: 1280px; margin: 0 auto; padding: 0 28px 96px; }
 @supports not (-webkit-text-stroke: 1px #000) {
   .hero h1 .outline { color: rgba(246, 243, 239, 0.45); }
 }
+/* 3D-tilt på tittelen (tilt.js) – bare med mus/styreflate og uten redusert bevegelse */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .hero-content { perspective: 900px; }
+  .hero h1 {
+    transform-style: preserve-3d;
+    transform:
+      rotateX(calc(var(--tilt-y, 0) * var(--tilt-max, 7) * -1deg))
+      rotateY(calc(var(--tilt-x, 0) * var(--tilt-max, 7) * 1deg));
+  }
+  .hero h1.is-tilting { will-change: transform; }
+  /* «SETLIST» løftes fram i dybden, og den røde skyggen glir motsatt vei som om den ligger bak */
+  .hero h1 .solid {
+    transform: translateZ(calc(var(--tilt-on, 0) * 26px));
+    text-shadow: calc(0.04em - var(--tilt-x, 0) * 0.035em) calc(0.04em - var(--tilt-y, 0) * 0.035em) 0 var(--accent);
+  }
+}
 .hero-lead { margin: 18px 0 0; max-width: 520px; font-size: 18px; line-height: 1.5; color: rgba(255, 245, 235, 0.86); }
 .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 30px; }
 
@@ -239,6 +255,30 @@ main { max-width: 1280px; margin: 0 auto; padding: 0 28px 96px; }
   transition: transform 0.2s ease, border-color 0.2s, box-shadow 0.2s;
 }
 .card:hover { transform: translateY(-3px); border-color: rgba(255, 61, 61, 0.55); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5); }
+/* Tydelig fokus for tastatur (ingen tilt) */
+.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-color: rgba(255, 61, 61, 0.55); }
+.card:focus-visible .card-arrow { color: var(--accent); }
+
+/* 3D-tilt og lysglimt på kortene (tilt.js) – bare med mus/styreflate og uten redusert bevegelse.
+   Glimtet ligger under hakkene og teksten (som er posisjonert etter det), så detaljene beholdes. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .card::before {
+    content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: radial-gradient(240px circle at var(--tilt-mx, 50%) var(--tilt-my, 50%),
+      rgba(255, 255, 255, 0.11), rgba(120, 170, 255, 0.05) 38%, transparent 68%);
+    opacity: var(--tilt-on, 0);
+  }
+  .card.is-tilting {
+    will-change: transform;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    transform:
+      perspective(800px)
+      rotateX(calc(var(--tilt-y, 0) * var(--tilt-max, 5) * -1deg))
+      rotateY(calc(var(--tilt-x, 0) * var(--tilt-max, 5) * 1deg))
+      translateZ(calc(var(--tilt-on, 0) * 14px))
+      scale(calc(1 + var(--tilt-on, 0) * 0.015));
+  }
+}
 .card-tag {
   display: flex; align-items: center; justify-content: center;
   writing-mode: vertical-rl; transform: rotate(180deg);
@@ -259,7 +299,7 @@ main { max-width: 1280px; margin: 0 auto; padding: 0 28px 96px; }
 .stub-month { font-size: 11px; font-weight: 700; letter-spacing: 0.22em; margin-top: 4px; }
 .stub-year { font-size: 10px; color: var(--muted); letter-spacing: 0.12em; }
 
-.card-body { padding: 16px 70px 16px 18px; display: flex; flex-direction: column; justify-content: center; gap: 3px; min-width: 0; }
+.card-body { position: relative; padding: 16px 70px 16px 18px; display: flex; flex-direction: column; justify-content: center; gap: 3px; min-width: 0; }
 .card-eyebrow { font-size: 9.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card h3 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; overflow-wrap: anywhere; }
 .card .meta { color: var(--muted); font-size: 13px; }

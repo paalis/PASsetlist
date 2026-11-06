@@ -171,5 +171,10 @@
   <script src="app.js"></script>
   <script type="module" src="cloud.js"></script>
   <script type="module" src="three/hero3d.js"></script>
+  <script type="module">
+    import { initTilt } from './tilt.js';
+    initTilt('.hero h1', { area: '.hero', max: 7 }); // tittelen tilter etter pekeren over hero
+    initTilt('.card', { max: 5 }); // setlist-kortene tilter mot pekeren
+  </script>
 </body>
 </html>
