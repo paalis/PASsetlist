@@ -354,8 +354,10 @@ function route() {
   const m = location.hash.match(/^#\/s\/([\w-]+)/);
   const editing = m && getSetlist(m[1]);
   document.body.classList.toggle('on-home', !editing);
-  if (editing) renderEditor(getSetlist(m[1]));
-  else renderHome();
+  if (editing) {
+    window.dispatchEvent(new CustomEvent('hero:leave'));
+    renderEditor(getSetlist(m[1]));
+  } else renderHome();
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
@@ -386,6 +388,7 @@ function renderHome() {
   app.innerHTML = `
     <section class="hero">
       <div class="hero-photo" aria-hidden="true"></div>
+      <div class="hero-crowd-front" aria-hidden="true"></div>
       <div class="hero-grain" aria-hidden="true"></div>
       <div class="hero-content">
         <p class="hero-kicker">Setlister for band og artister</p>
@@ -446,6 +449,9 @@ function renderHome() {
       <label class="btn small ghost">Gjenopprett fra fil<input type="file" accept="application/json" id="importFile" hidden /></label>
     </div>
   `;
+
+  // 3D-scenen (three/hero3d.js) flytter canvaset inn i den nye hero-seksjonen
+  window.dispatchEvent(new CustomEvent('hero:render', { detail: app.querySelector('.hero') }));
 
   app.querySelectorAll('#newBtn, #newBtnEmpty').forEach((b) => (b.onclick = () => openCreateDialog()));
   document.getElementById('heroSignIn')?.addEventListener('click', openCodeDialog);
