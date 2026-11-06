@@ -1137,17 +1137,32 @@ function updatePrintPreview() {
     printFs = o.size / 100;
   }
 
-  // Skaler arket ned så det passer i forhåndsvisningen
+  // A4-mål i CSS-piksler, og høyden det er plass til tekst på per side (14 mm marg oppe og nede)
+  const MM = 96 / 25.4;
+  const landscape = o.orientation === 'landscape';
+  const pageW = (landscape ? 297 : 210) * MM;
+  const pageH = (landscape ? 210 : 297) * MM;
+  const contentH = pageH - 28 * MM;
+  const pages = o.fit ? 1 : Math.max(1, Math.ceil((inner.scrollHeight - 1) / contentH));
+
+  // Fast skala per A4-side, så tekststørrelsen i forhåndsvisningen faktisk endrer seg.
+  // Flere sider vises under hverandre (rull i forhåndsvisningen), med sideskift markert.
   const box = printPreview.parentElement;
-  const fullHeight = o.fit ? sheet.offsetHeight : Math.max(sheet.offsetHeight, sheet.scrollHeight);
   const roomY = window.innerWidth > 760 ? window.innerHeight - 150 : Infinity; // hele siden synlig på større skjermer
-  const scale = Math.min(1, (box.clientWidth - 2) / sheet.offsetWidth, roomY / Math.min(fullHeight, sheet.offsetHeight));
+  const scale = Math.min(1, (box.clientWidth - 2) / pageW, roomY / pageH);
   sheet.style.transform = `scale(${scale})`;
-  printPreview.style.width = `${sheet.offsetWidth * scale}px`;
-  printPreview.style.height = `${fullHeight * scale}px`;
-  const pages = o.fit ? 1 : Math.max(1, Math.ceil((inner.scrollHeight + 1) / (sheet.clientHeight * 0.88)));
+  printPreview.style.width = `${pageW * scale}px`;
+  printPreview.style.height = `${Math.max(pageH, o.fit ? pageH : sheet.offsetHeight) * scale}px`;
+  for (let k = 1; k < pages; k++) {
+    const mark = document.createElement('div');
+    mark.className = 'page-break';
+    mark.style.top = `${(14 * MM + k * contentH) * scale}px`;
+    mark.dataset.label = `Side ${k + 1}`;
+    printPreview.appendChild(mark);
+  }
+
   document.getElementById('printInfo').textContent =
-    `A4 ${o.orientation === 'landscape' ? 'liggende' : 'stående'} · ${pages} ${pages === 1 ? 'side' : 'sider'}` +
+    `A4 ${landscape ? 'liggende' : 'stående'} · ${pages} ${pages === 1 ? 'side' : 'sider'}` +
     (o.fit ? ` · skrift ${Math.round(printFs * 100)} %` : '');
 }
 
@@ -1160,7 +1175,10 @@ printForm.addEventListener('submit', (e) => {
   e.preventDefault();
   const o = readPrintOptions();
   document.getElementById('stage').innerHTML = sheetHTML(printTarget, o, printFs);
-  document.getElementById('pageStyle').textContent = `@page { size: A4 ${o.orientation}; margin: 0; }`;
+  // Én side: arket fyller hele A4 selv. Flere sider: nettleseren deler opp, så margene legges på hver side.
+  document.getElementById('pageStyle').textContent = o.fit
+    ? `@page { size: A4 ${o.orientation}; margin: 0; }`
+    : `@page { size: A4 ${o.orientation}; margin: 14mm 16mm; }`;
   printDialog.close();
   window.print();
 });

@@ -652,6 +652,15 @@ textarea.plain:focus, input.plain:focus { outline: none; border-color: var(--acc
 .print-preview-box { width: 100%; display: flex; justify-content: center; }
 .print-preview { position: relative; overflow: hidden; border-radius: 3px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6); }
 .print-preview .sheet { transform-origin: top left; position: absolute; top: 0; left: 0; }
+.page-break {
+  position: absolute; left: 0; right: 0; height: 0; z-index: 1; pointer-events: none;
+  border-top: 2px dashed rgba(255, 61, 61, 0.8);
+}
+.page-break::before {
+  content: attr(data-label); position: absolute; right: 6px; top: 4px;
+  padding: 3px 6px; border-radius: 4px; background: var(--accent);
+  font: 700 10px/1 var(--font); letter-spacing: 0.12em; text-transform: uppercase; color: #fff;
+}
 
 @media (max-width: 760px) {
   .dialog form.print-layout { grid-template-columns: 1fr; }
@@ -710,6 +719,8 @@ textarea.plain:focus, input.plain:focus { outline: none; border-color: var(--acc
   .stage { display: block; }
   .stage .sheet.fit { height: 296mm; }
   .stage .sheet.orient-landscape.fit { height: 209mm; }
+  /* Flere sider: margene kommer fra @page, så arket selv skal ikke ha egen marg eller fast størrelse */
+  .stage .sheet:not(.fit) { width: auto; min-height: 0; padding: 0; }
 }
 
 /* Etiketten holder seg stille (lesbar dato) mens platen snurrer */
