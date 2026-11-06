@@ -3,7 +3,7 @@
 // flimring og sakte drift (alt regnes på GPU-en, ingenting per partikkel i JS).
 //
 //   const field = createParticleField(THREE, { count: 4000 });
-//   stage.add(field);                 // tegnes før søylene (renderOrder -1)
+//   stage.add(field);                 // tegnes bakerst (renderOrder -1)
 //   field.setOpacity(0.5);            // f.eks. ved scroll
 
 const vertexShader = /* glsl */ `
@@ -127,7 +127,7 @@ export function createParticleField(THREE, { count = 4000, cameraZ = 10, fov = 4
     fragmentShader,
     transparent: true,
     depthWrite: false,
-    depthTest: false, // tegnes som bakgrunnslag; søylene legger seg alltid foran
+    depthTest: false, // tegnes som bakgrunnslag bak eventuelle andre 3D-elementer
     blending: THREE.AdditiveBlending,
     uniforms: {
       uTime: { value: 0 },

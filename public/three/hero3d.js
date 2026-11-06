@@ -6,20 +6,15 @@
 // for å lage et nytt. Alt ryddes bort når man forlater forsiden.
 //
 // Lag i hero:  bilde (-1) → canvas (0) → publikum foran (1) → korn (2) → tekst (3)
+// Scenen inneholder partikkelfeltet, kamerariggen (parallakse + scroll) og uttoning.
 
 import { createStage } from './stage.js';
-import { createEqualizer } from './equalizer.js';
 import { createParticleField } from './particles.js';
 import { createCameraRig } from './camera-rig.js';
 
 let stage = null;
 let starting = null;
 let generation = 0;
-
-function cssAccent() {
-  const value = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
-  return value || '#ff3d3d';
-}
 
 // Toner ut hele canvaset (bare opacity) i siste del av scroll-effekten
 function createScrollFade(canvas) {
@@ -43,7 +38,6 @@ async function ensureStage() {
     const s = await createStage({ fov: 45, cameraZ: 10 });
     if (!s) return null; // ingen WebGL: behold bare bakgrunnsbildet
     s.add(createParticleField(s.THREE, { count: 4000, cameraZ: 10, fov: 45 })); // bakerst (2000 på mobil)
-    s.add(createEqualizer(s.THREE, { accent: cssAccent() }));
     s.add(createCameraRig({ strengthX: 0.8, strengthY: 0.45, travel: 6 })); // musparallakse + scroll
     s.add(createScrollFade(s.canvas)); // canvaset tones ut mot «Mine setlister»
     if (starting === promise) stage = s;
