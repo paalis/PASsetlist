@@ -590,29 +590,93 @@ textarea.plain:focus, input.plain:focus { outline: none; border-color: var(--acc
   .song input, .song input.title, .song.break input.title, input.plain, textarea.plain, .field input, .field textarea, .spec-input { font-size: 16px; }
 }
 
-/* ---------- Utskrift (scenevennlig, svart på hvitt) ---------- */
+/* ---------- Utskriftsvindu ---------- */
+.dialog.wide { width: min(1080px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+.dialog form.print-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 0; padding: 0; }
+.print-options { display: flex; flex-direction: column; gap: 18px; padding: 26px; border-right: 1px solid var(--line); overflow-y: auto; max-height: calc(100vh - 34px); }
+.print-options fieldset { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px; }
+.print-options legend {
+  display: flex; justify-content: space-between; width: 100%; padding: 0; margin-bottom: 8px;
+  font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.22em; color: var(--muted);
+}
+.print-options legend output { letter-spacing: 0.04em; text-transform: none; color: var(--text); }
+.choice { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); }
+.choice label { flex: 1; position: relative; }
+.choice input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.choice span {
+  display: block; padding: 7px 6px; border-radius: 999px; text-align: center; white-space: nowrap;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+.choice input:checked + span { background: #fff; color: #0b0a0d; }
+.choice input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+.checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.check input { width: 17px; height: 17px; accent-color: var(--accent); margin: 0; }
+.print-options input[type='range'] { width: 100%; accent-color: var(--accent); }
+.print-options input[type='range']:disabled { opacity: 0.35; }
+
+.print-stage { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px; background: #0d0c0f; min-width: 0; overflow-y: auto; max-height: calc(100vh - 34px); }
+.print-preview-box { width: 100%; display: flex; justify-content: center; }
+.print-preview { position: relative; overflow: hidden; border-radius: 3px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6); }
+.print-preview .sheet { transform-origin: top left; position: absolute; top: 0; left: 0; }
+
+@media (max-width: 760px) {
+  .dialog form.print-layout { grid-template-columns: 1fr; }
+  .print-options { border-right: 0; max-height: none; padding: 20px; order: 2; }
+  .print-stage { max-height: none; padding: 16px; order: 1; }
+  .dialog.wide { overflow-y: auto; }
+}
+
+/* ---------- Arket (forhåndsvisning og utskrift) ---------- */
+.sheet {
+  --fs: 1;
+  width: 210mm; height: 297mm; padding: 14mm 16mm; box-sizing: border-box; overflow: hidden;
+  background: #fff; color: #111; font-family: var(--font);
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.sheet.orient-landscape { width: 297mm; height: 210mm; }
+.sheet:not(.fit) { height: auto; min-height: 297mm; overflow: visible; }
+.sheet.orient-landscape:not(.fit) { min-height: 210mm; }
+.sheet.theme-dark { background: #0a0a0a; color: #f4f1ec; }
+
+.sheet-head { margin-bottom: calc(10pt * var(--fs)); padding-bottom: calc(8pt * var(--fs)); border-bottom: 1.5pt solid currentColor; }
+.sheet-head h1 { margin: 0; font-size: calc(24pt * var(--fs)); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.sheet-sub { margin-top: 3pt; font-size: calc(10pt * var(--fs)); opacity: 0.65; }
+.sheet-list { list-style: none; margin: 0; padding: 0; }
+.sheet-list li {
+  display: flex; align-items: baseline; gap: calc(8pt * var(--fs));
+  padding: calc(3pt * var(--fs)) 0; font-size: calc(20pt * var(--fs)); line-height: 1.15; break-inside: avoid;
+}
+.sheet-list .n { flex: none; min-width: 1.4em; text-align: right; font-weight: 400; opacity: 0.45; font-variant-numeric: tabular-nums; }
+.sheet-list .body { flex: 1; min-width: 0; }
+.sheet-list .t { font-weight: 800; letter-spacing: -0.01em; margin-right: 0.3em; }
+.sheet-list .k { display: inline-block; font-size: 0.55em; font-weight: 700; padding: 0.05em 0.35em; margin-right: 0.5em; border: 1pt solid currentColor; border-radius: 3pt; opacity: 0.8; vertical-align: 0.25em; line-height: 1.2; }
+.sheet-list .a { font-size: 0.55em; opacity: 0.6; margin-right: 0.6em; white-space: nowrap; }
+.sheet-list .x { font-size: 0.5em; font-style: italic; opacity: 0.6; }
+.sheet-list .d { flex: none; font-size: 0.55em; opacity: 0.55; font-variant-numeric: tabular-nums; }
+.sheet-list li.brk {
+  justify-content: center; margin: calc(5pt * var(--fs)) 0; padding: calc(3pt * var(--fs)) 0;
+  font-size: calc(11pt * var(--fs)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3em;
+  border-top: 1pt dashed currentColor; border-bottom: 1pt dashed currentColor; opacity: 0.6;
+}
+.sheet-foot { margin-top: calc(10pt * var(--fs)); padding-top: calc(6pt * var(--fs)); border-top: 1pt solid currentColor; font-size: calc(10pt * var(--fs)); opacity: 0.6; }
+
+.sheet.layout-compact .sheet-list li { font-size: calc(13pt * var(--fs)); padding: calc(1.5pt * var(--fs)) 0; }
+.sheet.layout-compact .sheet-list li + li:not(.brk) { border-top: 0.5pt solid rgba(127, 127, 127, 0.25); }
+.sheet.layout-columns .sheet-list { column-count: 2; column-gap: 12mm; }
+.sheet.layout-columns .sheet-list li { font-size: calc(14pt * var(--fs)); }
+.sheet.upper .sheet-list .t, .sheet.upper .sheet-head h1 { text-transform: uppercase; letter-spacing: 0.02em; }
+
 .stage { display: none; }
 
 @media print {
-  @page { margin: 14mm; }
-  body { background: #fff; color: #000; }
-  .no-print, #app > *:not(.stage) { display: none !important; }
-  main { padding: 0; max-width: none; }
-  .stage { display: block; font-family: var(--font); }
-  .stage h1 { font-size: 26pt; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4pt; }
-  .stage .sub { font-size: 11pt; color: #444; margin-bottom: 14pt; }
-  .stage ol { list-style: none; padding: 0; margin: 0; }
-  .stage li { display: flex; align-items: baseline; gap: 10pt; font-size: 20pt; font-weight: 700; padding: 3pt 0; break-inside: avoid; }
-  .stage li .n { width: 1.6em; text-align: right; color: #888; font-weight: 400; }
-  .stage li .k { font-size: 13pt; font-weight: 400; color: #444; border: 1px solid #999; border-radius: 4pt; padding: 0 4pt; }
-  .stage li .a { font-size: 12pt; font-weight: 400; color: #555; }
-  .stage li .x { font-size: 11pt; font-weight: 400; font-style: italic; color: #555; }
-  .stage li.brk {
-    justify-content: center; font-size: 13pt; color: #555;
-    border-top: 1px dashed #999; border-bottom: 1px dashed #999; margin: 6pt 0;
-    text-transform: uppercase; letter-spacing: 0.2em;
-  }
-  body.print-compact .stage li { font-size: 14pt; padding: 1pt 0; }
+  html, body { background: #fff !important; }
+  body > *:not(main), .topbar, dialog, .toast { display: none !important; }
+  #app > *:not(.stage) { display: none !important; }
+  main { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  .stage { display: block; }
+  .stage .sheet.fit { height: 296mm; }
+  .stage .sheet.orient-landscape.fit { height: 209mm; }
 }
 
 /* Etiketten holder seg stille (lesbar dato) mens platen snurrer */

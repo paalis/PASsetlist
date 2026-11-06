@@ -98,6 +98,74 @@
     </div>
   </dialog>
 
+  <!-- Dialog: utskrift med valg og forhåndsvisning -->
+  <dialog id="printDialog" class="dialog wide">
+    <form id="printForm" class="print-layout">
+      <div class="print-options">
+        <h2>Skriv ut setlist</h2>
+
+        <fieldset>
+          <legend>Oppsett</legend>
+          <div class="choice">
+            <label><input type="radio" name="layout" value="stage" /><span>Scene</span></label>
+            <label><input type="radio" name="layout" value="compact" /><span>Kompakt</span></label>
+            <label><input type="radio" name="layout" value="columns" /><span>To kolonner</span></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Retning</legend>
+          <div class="choice">
+            <label><input type="radio" name="orientation" value="portrait" /><span>Stående</span></label>
+            <label><input type="radio" name="orientation" value="landscape" /><span>Liggende</span></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Tekststørrelse <output id="sizeValue"></output></legend>
+          <label class="check"><input type="checkbox" name="fit" /> Tilpass til én side</label>
+          <input type="range" name="size" min="60" max="180" step="5" aria-label="Tekststørrelse" />
+        </fieldset>
+
+        <fieldset>
+          <legend>Vis</legend>
+          <div class="checks">
+            <label class="check"><input type="checkbox" name="header" /> Navn, dato og sted</label>
+            <label class="check"><input type="checkbox" name="numbers" /> Låtnummer</label>
+            <label class="check"><input type="checkbox" name="artist" /> Artist</label>
+            <label class="check"><input type="checkbox" name="key" /> Toneart</label>
+            <label class="check"><input type="checkbox" name="notes" /> Notater</label>
+            <label class="check"><input type="checkbox" name="duration" /> Varighet</label>
+            <label class="check"><input type="checkbox" name="breaks" /> Pauser</label>
+            <label class="check"><input type="checkbox" name="total" /> Total spilletid</label>
+            <label class="check"><input type="checkbox" name="upper" /> STORE BOKSTAVER</label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Utseende</legend>
+          <div class="choice">
+            <label><input type="radio" name="theme" value="light" /><span>Lys</span></label>
+            <label><input type="radio" name="theme" value="dark" /><span>Mørk</span></label>
+          </div>
+          <small class="hint">Mørk passer for PDF på nettbrett på scenen, lys for papir.</small>
+        </fieldset>
+
+        <div class="dialog-actions">
+          <button type="button" class="btn ghost" id="printCancel">Avbryt</button>
+          <button type="submit" class="btn primary">Skriv ut</button>
+        </div>
+      </div>
+
+      <div class="print-stage">
+        <div class="print-preview-box"><div id="printPreview" class="print-preview"></div></div>
+        <p class="hint" id="printInfo"></p>
+      </div>
+    </form>
+  </dialog>
+
+  <style id="pageStyle"></style>
+
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="app.js"></script>

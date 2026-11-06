@@ -718,11 +718,7 @@ function renderEditor(sl) {
 
   document.getElementById('bookBtn').onclick = () => buildSongbook(sl);
 
-  document.getElementById('printBtn').onclick = () => {
-    renderStage(sl);
-    document.body.classList.toggle('print-compact', sl.items.length > 22);
-    window.print();
-  };
+  document.getElementById('printBtn').onclick = () => openPrintDialog(sl);
 
   renderSongs(sl);
 }
@@ -998,29 +994,172 @@ function asText(sl) {
   return lines.join('\n');
 }
 
-function renderStage(sl) {
-  const stage = document.getElementById('stage');
-  let n = 0;
-  const sub = [sl.date && fmtDate(sl.date), sl.venue, sl.notes].filter(Boolean).map(esc).join(' · ');
-  stage.innerHTML = `
-    <h1>${esc(sl.name || 'Setlist')}</h1>
-    ${sub ? `<div class="sub">${sub}</div>` : ''}
-    <ol>
-      ${sl.items
-        .map((i) => {
-          if (i.type === 'break') return `<li class="brk">${esc(i.title || 'Pause')}</li>`;
-          n++;
-          return `<li>
-            <span class="n">${n}</span>
-            <span>${esc(i.title)}</span>
-            ${i.key ? `<span class="k">${esc(i.key)}</span>` : ''}
-            ${i.artist ? `<span class="a">${esc(i.artist)}</span>` : ''}
-            ${i.notes ? `<span class="x">${esc(i.notes)}</span>` : ''}
-          </li>`;
-        })
-        .join('')}
-    </ol>`;
+/* ---------- Utskrift med valg og forhåndsvisning ---------- */
+
+const PRINT_KEY = 'setlist-generator.print';
+const PRINT_DEFAULTS = {
+  layout: 'stage', // stage | compact | columns
+  orientation: 'portrait', // portrait | landscape
+  theme: 'light', // light | dark
+  fit: true,
+  size: 100,
+  header: true,
+  numbers: true,
+  artist: true,
+  key: true,
+  notes: false,
+  duration: false,
+  breaks: true,
+  total: false,
+  upper: false,
+};
+
+function loadPrintOptions() {
+  try {
+    return { ...PRINT_DEFAULTS, ...JSON.parse(localStorage.getItem(PRINT_KEY) || '{}') };
+  } catch (_) {
+    return { ...PRINT_DEFAULTS };
+  }
 }
+
+function savePrintOptions(o) {
+  try {
+    localStorage.setItem(PRINT_KEY, JSON.stringify(o));
+  } catch (_) {}
+}
+
+// Selve arket – brukes både i forhåndsvisningen og ved utskrift
+function sheetHTML(sl, o, fs) {
+  let n = 0;
+  const sub = [sl.date && fmtDate(sl.date), sl.venue].filter(Boolean).map(esc).join(' · ');
+  const rows = sl.items
+    .map((i) => {
+      if (i.type === 'break') {
+        return o.breaks ? `<li class="brk"><span>${esc(i.title || 'Pause')}</span></li>` : '';
+      }
+      n++;
+      const meta = [
+        o.key && i.key ? `<span class="k">${esc(i.key)}</span>` : '',
+        o.artist && i.artist ? `<span class="a">${esc(i.artist)}</span>` : '',
+        o.notes && i.notes ? `<span class="x">${esc(i.notes)}</span>` : '',
+      ].join('');
+      return `<li>
+        ${o.numbers ? `<span class="n">${n}</span>` : ''}
+        <span class="body"><span class="t">${esc(i.title || '–')}</span>${meta}</span>
+        ${o.duration && i.durationMs ? `<span class="d">${fmtDuration(i.durationMs)}</span>` : ''}
+      </li>`;
+    })
+    .join('');
+  const t = totalMs(sl);
+  const classes = [`sheet`, `layout-${o.layout}`, `theme-${o.theme}`, `orient-${o.orientation}`, o.fit ? 'fit' : '', o.upper ? 'upper' : '']
+    .filter(Boolean)
+    .join(' ');
+  return `
+    <div class="${classes}" style="--fs:${fs}">
+      <div class="sheet-inner">
+        ${
+          o.header
+            ? `<header class="sheet-head"><h1>${esc(sl.name || 'Setlist')}</h1>${sub ? `<div class="sheet-sub">${sub}</div>` : ''}</header>`
+            : ''
+        }
+        <ol class="sheet-list">${rows}</ol>
+        ${o.total ? `<footer class="sheet-foot">${songCount(sl)} låter${t ? ` · ${fmtTotal(t)}` : ''}</footer>` : ''}
+      </div>
+    </div>`;
+}
+
+const printDialog = document.getElementById('printDialog');
+const printForm = document.getElementById('printForm');
+const printPreview = document.getElementById('printPreview');
+let printTarget = null;
+let printFs = 1;
+
+function openPrintDialog(sl) {
+  printTarget = sl;
+  const o = loadPrintOptions();
+  for (const el of printForm.elements) {
+    if (!el.name) continue;
+    if (el.type === 'checkbox') el.checked = !!o[el.name];
+    else if (el.type === 'radio') el.checked = o[el.name] === el.value;
+    else el.value = o[el.name];
+  }
+  printDialog.showModal();
+  updatePrintPreview();
+}
+
+function readPrintOptions() {
+  const o = { ...PRINT_DEFAULTS };
+  for (const el of printForm.elements) {
+    if (!el.name) continue;
+    if (el.type === 'checkbox') o[el.name] = el.checked;
+    else if (el.type === 'radio') {
+      if (el.checked) o[el.name] = el.value;
+    } else if (el.type === 'range') o[el.name] = Number(el.value);
+  }
+  return o;
+}
+
+function updatePrintPreview() {
+  if (!printTarget) return;
+  const o = readPrintOptions();
+  savePrintOptions(o);
+  printForm.querySelector('[name=size]').disabled = o.fit;
+  document.getElementById('sizeValue').textContent = o.fit ? 'Automatisk' : `${o.size} %`;
+
+  printPreview.innerHTML = sheetHTML(printTarget, o, o.fit ? 1 : o.size / 100);
+  const sheet = printPreview.querySelector('.sheet');
+  const inner = sheet.querySelector('.sheet-inner');
+
+  // Tilpass til én side: finn største skriftskala som får plass
+  if (o.fit) {
+    const cs = getComputedStyle(sheet);
+    const roomH = sheet.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 2;
+    const roomW = sheet.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + 1;
+    const fits = (fs) => {
+      sheet.style.setProperty('--fs', fs);
+      return inner.scrollHeight <= roomH && inner.scrollWidth <= roomW;
+    };
+    let lo = 0.3;
+    let hi = o.layout === 'stage' ? 2.2 : 1.8;
+    if (fits(hi)) lo = hi;
+    else for (let i = 0; i < 14; i++) {
+      const mid = (lo + hi) / 2;
+      if (fits(mid)) lo = mid;
+      else hi = mid;
+    }
+    printFs = Math.floor(lo * 100) / 100;
+    sheet.style.setProperty('--fs', printFs);
+  } else {
+    printFs = o.size / 100;
+  }
+
+  // Skaler arket ned så det passer i forhåndsvisningen
+  const box = printPreview.parentElement;
+  const fullHeight = o.fit ? sheet.offsetHeight : Math.max(sheet.offsetHeight, sheet.scrollHeight);
+  const roomY = window.innerWidth > 760 ? window.innerHeight - 150 : Infinity; // hele siden synlig på større skjermer
+  const scale = Math.min(1, (box.clientWidth - 2) / sheet.offsetWidth, roomY / Math.min(fullHeight, sheet.offsetHeight));
+  sheet.style.transform = `scale(${scale})`;
+  printPreview.style.width = `${sheet.offsetWidth * scale}px`;
+  printPreview.style.height = `${fullHeight * scale}px`;
+  const pages = o.fit ? 1 : Math.max(1, Math.ceil((inner.scrollHeight + 1) / (sheet.clientHeight * 0.88)));
+  document.getElementById('printInfo').textContent =
+    `A4 ${o.orientation === 'landscape' ? 'liggende' : 'stående'} · ${pages} ${pages === 1 ? 'side' : 'sider'}` +
+    (o.fit ? ` · skrift ${Math.round(printFs * 100)} %` : '');
+}
+
+printForm.addEventListener('input', updatePrintPreview);
+printForm.addEventListener('change', updatePrintPreview);
+window.addEventListener('resize', () => printDialog.open && updatePrintPreview());
+document.getElementById('printCancel').onclick = () => printDialog.close();
+
+printForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const o = readPrintOptions();
+  document.getElementById('stage').innerHTML = sheetHTML(printTarget, o, printFs);
+  document.getElementById('pageStyle').textContent = `@page { size: A4 ${o.orientation}; margin: 0; }`;
+  printDialog.close();
+  window.print();
+});
 
 /* ---------- Filer: tekst, noter og akkordskjema ---------- */
 
