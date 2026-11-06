@@ -429,10 +429,11 @@ textarea.plain:focus, input.plain:focus { outline: none; border-color: var(--acc
 /* Setlistnavnet i plakatstil, som logoen: Anton, store bokstaver og hard rød skygge.
    (Navnet lagres som skrevet – det er bare visningen som er i store bokstaver.) */
 .title-input {
-  width: 100%; margin: 8px 0 0 -10px; padding: 4px 10px 8px;
+  width: 100%; margin: -4px 0 -6px -10px; padding: 0 10px;
   border: 1px solid transparent; border-radius: 8px; background: transparent;
   font-family: 'Anton', 'Impact', 'Arial Narrow Bold', sans-serif; font-weight: 400;
-  font-size: clamp(40px, 6vw, 78px); line-height: 1.05; letter-spacing: 0.01em; text-transform: uppercase;
+  /* Høy linjehøyde: tekstfelt klipper det som stikker over, og ringen på Å er høyere enn de andre bokstavene */
+  font-size: clamp(40px, 6vw, 78px); line-height: 1.5; letter-spacing: 0.01em; text-transform: uppercase;
   color: #f6f3ef; text-shadow: 0.045em 0.045em 0 var(--accent);
 }
 .title-input::placeholder { color: rgba(246, 243, 239, 0.25); text-shadow: none; }
