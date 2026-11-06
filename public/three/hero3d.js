@@ -10,6 +10,7 @@
 import { createStage } from './stage.js';
 import { createEqualizer } from './equalizer.js';
 import { createParticleField } from './particles.js';
+import { createCameraRig } from './camera-rig.js';
 
 let stage = null;
 let starting = null;
@@ -28,6 +29,7 @@ async function ensureStage() {
     if (!s) return null; // ingen WebGL: behold bare bakgrunnsbildet
     s.add(createParticleField(s.THREE, { count: 4000, cameraZ: 10, fov: 45 })); // bakerst
     s.add(createEqualizer(s.THREE, { accent: cssAccent() }));
+    s.add(createCameraRig({ strengthX: 0.8, strengthY: 0.45 })); // musparallakse (ikke på mobil)
     if (starting === promise) stage = s;
     return s;
   })());
