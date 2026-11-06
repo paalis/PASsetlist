@@ -385,10 +385,7 @@ function renderHome() {
 
   app.innerHTML = `
     <section class="hero">
-      <div class="hero-glow" aria-hidden="true"></div>
-      <div class="hero-beams" aria-hidden="true">${'<i></i>'.repeat(14)}</div>
-      <div class="hero-flares" aria-hidden="true"><i></i><i></i><i></i></div>
-      <div class="hero-crowd" aria-hidden="true"></div>
+      <div class="hero-photo" aria-hidden="true"></div>
       <div class="hero-grain" aria-hidden="true"></div>
       <div class="hero-content">
         <p class="hero-kicker">Setlister for band og artister</p>
