@@ -392,6 +392,9 @@ main { max-width: 1280px; margin: 0 auto; padding: 0 28px 96px; }
 .back { color: var(--muted); text-decoration: none; font-size: 13px; }
 .back:hover { color: var(--accent); }
 .deck-vinyl { display: grid; place-items: center; padding: 10px 0 6px; }
+/* Den snurrende platen er rund, men boksen rundt den er firkantet: når den roteres stikker
+   hjørnene ut og ga sidelengs scroll i infokolonnen. Klipp bare horisontalt (ikke skyggen under). */
+.deck-vinyl { overflow-x: clip; }
 
 .spec { margin: 0; border-top: 1px solid var(--line); }
 .spec > div {
@@ -429,11 +432,11 @@ textarea.plain:focus, input.plain:focus { outline: none; border-color: var(--acc
 /* Setlistnavnet i plakatstil, som logoen: Anton, store bokstaver og hard rød skygge.
    (Navnet lagres som skrevet – det er bare visningen som er i store bokstaver.) */
 .title-input {
-  width: 100%; margin: -4px 0 -6px -10px; padding: 0 10px;
+  width: 100%; margin: 4px 0 -2px -10px; padding: 0 10px;
   border: 1px solid transparent; border-radius: 8px; background: transparent;
   font-family: 'Anton', 'Impact', 'Arial Narrow Bold', sans-serif; font-weight: 400;
   /* Høy linjehøyde: tekstfelt klipper det som stikker over, og ringen på Å er høyere enn de andre bokstavene */
-  font-size: clamp(40px, 6vw, 78px); line-height: 1.5; letter-spacing: 0.01em; text-transform: uppercase;
+  font-size: clamp(34px, 5vw, 64px); line-height: 1.5; letter-spacing: 0.01em; text-transform: uppercase;
   color: #f6f3ef; text-shadow: 0.045em 0.045em 0 var(--accent);
 }
 .title-input::placeholder { color: rgba(246, 243, 239, 0.25); text-shadow: none; }
