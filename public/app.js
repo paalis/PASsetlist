@@ -352,11 +352,17 @@ async function fetchSpotify(url) {
 
 function route() {
   const m = location.hash.match(/^#\/s\/([\w-]+)/);
-  if (m && getSetlist(m[1])) renderEditor(getSetlist(m[1]));
+  const editing = m && getSetlist(m[1]);
+  document.body.classList.toggle('on-home', !editing);
+  if (editing) renderEditor(getSetlist(m[1]));
   else renderHome();
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);
+// Toppmenyen er gjennomsiktig over scenen til man begynner å rulle
+const onScroll = () => document.body.classList.toggle('scrolled', window.scrollY > 40);
+window.addEventListener('scroll', onScroll, { passive: true });
+onScroll();
 
 /* ---------- Oversikt ---------- */
 
@@ -372,17 +378,26 @@ function renderHome() {
       : `<span class="vinyl" aria-hidden="true"></span>`;
   };
 
+  const next = sorted
+    .filter((s) => s.date && s.date >= new Date().toISOString().slice(0, 10))
+    .sort((x, y) => x.date.localeCompare(y.date))[0];
+  const label = (s) => (s === next ? 'Neste' : s.date ? 'Spillejobb' : 'Setlist');
+
   app.innerHTML = `
     <section class="hero">
+      <div class="hero-smoke" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
       <div class="hero-lights" aria-hidden="true"><i></i><i></i><i></i></div>
-      <p class="eyebrow">Fra spilleliste til scene</p>
-      <h1>Bygg kveldens <span class="grad">setlist</span></h1>
-      <p class="lead">Lim inn en Spotify-spilleliste, så får du en setlist du kan stokke om, notere i og ta med på scenen.</p>
-      <div class="hero-actions">
-        <button class="btn primary big" id="newBtn">＋ Opprett ny setlist</button>
-        ${cloudEnabled && !cloudUser ? '<button class="btn outline big" id="heroSignIn">Logg inn med kode</button>' : ''}
+      <div class="hero-crowd" aria-hidden="true"></div>
+      <div class="hero-content">
+        <span class="hero-rule" aria-hidden="true"></span>
+        <h1><span>Setlist</span><span class="ghost">Generator</span></h1>
+        <div class="wave" aria-hidden="true">${'<i></i>'.repeat(36)}</div>
+        <p class="tagline">Fra spilleliste til scene</p>
+        <div class="hero-actions">
+          <button class="btn light big" id="newBtn">＋ Opprett ny setlist</button>
+          ${cloudEnabled && !cloudUser ? '<button class="btn outline big" id="heroSignIn">Logg inn med kode</button>' : ''}
+        </div>
       </div>
-      <div class="eq" aria-hidden="true">${'<span></span>'.repeat(28)}</div>
     </section>
 
     <section class="list-section">
@@ -397,17 +412,19 @@ function renderHome() {
         ? `<div class="cards">${sorted
             .map(
               (s) => `
-          <a class="card" href="#/s/${s.id}">
+          <a class="card${s === next ? ' is-next' : ''}" href="#/s/${s.id}">
+            <span class="card-tag">${label(s)}</span>
             <div class="stub">${stub(s)}</div>
             <div class="card-body">
+              <span class="card-eyebrow">${s.venue ? esc(s.venue) : `Endret ${fmtDate(s.updatedAt)}`}</span>
               <h3>${esc(s.name || 'Uten navn')}</h3>
               <div class="meta">${songCount(s)} låter${totalMs(s) ? ` · ${fmtTotal(totalMs(s))}` : ''}</div>
-              <div class="meta">${s.venue ? esc(s.venue) : `Endret ${fmtDate(s.updatedAt)}`}</div>
             </div>
             <div class="card-menu">
               <button class="icon-btn" data-dup="${s.id}" title="Dupliser" aria-label="Dupliser">⧉</button>
               <button class="icon-btn danger" data-del="${s.id}" title="Slett" aria-label="Slett">✕</button>
             </div>
+            <span class="card-arrow" aria-hidden="true">›</span>
           </a>`
             )
             .join('')}</div>`
@@ -607,36 +624,48 @@ function renderEditor(sl) {
   document.title = `${sl.name || 'Setlist'} – Setlist Generator`;
 
   app.innerHTML = `
-    <div class="editor-head">
-      <a href="#/" class="back">← Alle setlister</a>
-      <p class="eyebrow">Setlist</p>
-      <input class="title-input" id="slName" value="${esc(sl.name)}" placeholder="Navn på setlisten" aria-label="Navn" />
-      <div class="meta-grid">
-        <label>Dato<input class="plain" id="slDate" type="date" value="${esc(sl.date)}" /></label>
-        <label>Sted<input class="plain" id="slVenue" value="${esc(sl.venue)}" placeholder="F.eks. Rockefeller" /></label>
-        <label>Notater<input class="plain" id="slNotes" value="${esc(sl.notes)}" placeholder="Generelle notater" /></label>
-      </div>
-    </div>
+    <div class="editor">
+      <aside class="deck">
+        <a href="#/" class="back">← Alle setlister</a>
+        <div class="deck-vinyl" aria-hidden="true">
+          <div class="vinyl xl"><span class="vinyl-label" id="deckLabel"></span></div>
+        </div>
+        <dl class="spec">
+          <div><dt>Dato</dt><dd><input class="spec-input" id="slDate" type="date" value="${esc(sl.date)}" aria-label="Dato" /></dd></div>
+          <div><dt>Sted</dt><dd><input class="spec-input" id="slVenue" value="${esc(sl.venue)}" placeholder="Legg til sted" aria-label="Sted" /></dd></div>
+          <div><dt>Låter</dt><dd id="specSongs"></dd></div>
+          <div><dt>Spilletid</dt><dd id="specTime"></dd></div>
+          <div><dt>Åpner med</dt><dd id="specOpener"></dd></div>
+          <div><dt>Noter</dt><dd id="specFiles"></dd></div>
+        </dl>
+        <label class="spec-notes">
+          <span>Notater</span>
+          <textarea class="plain" id="slNotes" rows="2" placeholder="Generelle notater">${esc(sl.notes)}</textarea>
+        </label>
+        <div class="deck-actions">
+          <button class="btn square primary" id="bookBtn">Notehefte (PDF)</button>
+          <button class="btn square" id="printBtn">Skriv ut</button>
+          <button class="btn square" id="copyBtn">Kopier som tekst</button>
+          <button class="btn square" id="addSpotify">＋ Fra Spotify</button>
+        </div>
+      </aside>
 
-    <div class="toolbar">
-      <div class="stats" id="stats"></div>
-      <div class="group">
-        <button class="btn small" id="addSpotify">＋ Fra Spotify</button>
-        <button class="btn small" id="copyBtn">Kopier som tekst</button>
-        <button class="btn small" id="printBtn">Skriv ut</button>
-        <button class="btn small accent" id="bookBtn">Notehefte (PDF)</button>
-      </div>
-    </div>
+      <section class="tracks">
+        <p class="eyebrow">Setlist</p>
+        <input class="title-input" id="slName" value="${esc(sl.name)}" placeholder="Navn på setlisten" aria-label="Navn" />
+        <div class="toolbar"><div class="stats" id="stats"></div></div>
 
-    <div class="cols" aria-hidden="true">
-      <span></span><span class="r">#</span><span>Tittel</span><span>Artist</span><span class="c">Toneart</span><span>Notat</span><span class="r">Tid</span><span class="c">Noter</span><span class="spacer"></span>
-    </div>
-    <ol class="songs" id="songs"></ol>
+        <div class="cols" aria-hidden="true">
+          <span></span><span class="r">#</span><span>Tittel</span><span>Artist</span><span class="c">Toneart</span><span>Notat</span><span class="r">Tid</span><span class="c">Noter</span><span class="spacer"></span>
+        </div>
+        <ol class="songs" id="songs"></ol>
 
-    <div class="add-row">
-      <button class="btn small" id="addSong">＋ Legg til låt</button>
-      <button class="btn small" id="addBreak">＋ Pause / sett-skille</button>
-      ${sl.spotifyUrl ? `<a class="btn small ghost" href="${esc(sl.spotifyUrl)}" target="_blank" rel="noopener">Åpne i Spotify ↗</a>` : ''}
+        <div class="add-row">
+          <button class="btn small" id="addSong">＋ Legg til låt</button>
+          <button class="btn small" id="addBreak">＋ Pause / sett-skille</button>
+          ${sl.spotifyUrl ? `<a class="btn small ghost" href="${esc(sl.spotifyUrl)}" target="_blank" rel="noopener">Åpne i Spotify ↗</a>` : ''}
+        </div>
+      </section>
     </div>
 
     <section class="stage" id="stage"></section>
@@ -646,6 +675,7 @@ function renderEditor(sl) {
     document.getElementById(id).addEventListener('input', (e) => {
       sl[field] = e.target.value;
       touch(sl);
+      if (field === 'date' || field === 'name') updateStats(sl);
       if (field === 'name') document.title = `${sl.name || 'Setlist'} – Setlist Generator`;
     });
   };
@@ -702,6 +732,27 @@ function updateStats(sl) {
   if (!el) return;
   const t = totalMs(sl);
   el.innerHTML = `<strong>${songCount(sl)}</strong> låter${t ? ` · <strong>${fmtTotal(t)}</strong>` : ''}`;
+
+  // Infopanelet ved vinylplaten
+  const set = (id, text) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = text;
+  };
+  const songs = sl.items.filter((i) => i.type === 'song');
+  const files = songs.reduce((n, i) => n + (i.files || []).length, 0);
+  const withFiles = songs.filter((i) => (i.files || []).length).length;
+  set('specSongs', `${songs.length}`);
+  set('specTime', t ? fmtTotal(t) : '–');
+  set('specOpener', songs[0]?.title || '–');
+  set('specFiles', files ? `${files} filer · ${withFiles}/${songs.length} låter` : 'Ingen ennå');
+  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(sl.date || '');
+  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAI', 'JUN', 'JUL', 'AUG', 'SEP', 'OKT', 'NOV', 'DES'];
+  const label = document.getElementById('deckLabel');
+  if (label) {
+    label.innerHTML = m
+      ? `<b>${Number(m[2])}</b><small>${months[Number(m[1]) - 1]}</small>`
+      : `<b>${esc((sl.name || 'S').trim().charAt(0).toUpperCase())}</b><small>SETLIST</small>`;
+  }
 }
 
 function renderSongs(sl) {
