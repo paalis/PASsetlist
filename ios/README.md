@@ -1,4 +1,4 @@
-# Setlist for iPad (Swift Playgrounds)
+# Setlist Live for iPad (Swift Playgrounds / Xcode)
 
 En egen iPad-app som virker helt uten nett. Bygges og kjøres rett på iPaden i
 Swift Playgrounds – ingen Mac og ingen betalt utviklerkonto.
@@ -29,6 +29,24 @@ nettappen eller bandkoden.
 4. Trykk ▶ (Kjør). Første gang tar det litt tid å bygge.
 
 Ikonet kan endres i Playgrounds under appinnstillinger (⋯ → App-innstillinger).
+
+## Med Xcode og gratis Apple-ID (Mac)
+1. Installer **Xcode** fra App Store på Macen (gratis, stor nedlasting).
+2. Xcode → Settings → **Accounts** → «+» → Apple ID. Logg inn med din vanlige Apple-ID
+   (det blir et «Personal Team»).
+3. Last ned repoet (eller `Setlist-iPad.zip`) og åpne mappen **`Setlist.swiftpm`** i Xcode
+   (File → Open, velg mappen).
+4. Velg prosjektet i venstre kolonne → **Signing & Capabilities** → **Team**: ditt Personal Team.
+   Får du feil om bundle identifier, endre den til noe unikt, f.eks. `no.dittnavn.setlistlive`.
+5. Koble iPaden til Macen med kabel og trykk «Stol på» på iPaden. Velg iPaden øverst i Xcode.
+6. Slå på **Utviklermodus** på iPaden: Innstillinger → Personvern og sikkerhet → Utviklermodus
+   (iPaden starter på nytt).
+7. Trykk ▶ (Run) i Xcode.
+8. Første gang: på iPaden, Innstillinger → Generelt → VPN og enhetsadministrasjon →
+   velg Apple-ID-en din → **Stol på**. Trykk ▶ igjen.
+
+Med gratis konto slutter appen å starte etter **7 dager** – koble til og trykk ▶ i Xcode igjen
+(dataene beholdes). Maks 3 egne apper på enheten.
 
 ## Hvis noe ikke bygger
 Koden er skrevet uten tilgang til en Mac eller Swift-kompilator. Får du en feilmelding i

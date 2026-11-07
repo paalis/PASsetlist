@@ -1,7 +1,7 @@
 // swift-tools-version: 5.9
 
 // Swift Playgrounds-prosjekt for Setlist Live på iPad.
-// Åpne mappen «Setlist.swiftpm» i Swift Playgrounds-appen.
+// Åpne mappen «Setlist.swiftpm» i Swift Playgrounds (iPad/Mac) eller i Xcode (Mac).
 
 import PackageDescription
 import AppleProductTypes
@@ -19,7 +19,7 @@ let package = Package(
             teamIdentifier: "",
             displayVersion: "1.0",
             bundleVersion: "1",
-            appIcon: .placeholder(icon: .leaf),
+            appIcon: .asset("AppIcon"),
             accentColor: .presetColor(.pink),
             supportedDeviceFamilies: [
                 .pad,
