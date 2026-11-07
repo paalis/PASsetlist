@@ -118,8 +118,9 @@ enum Ink {
     static func draw(_ st: Stroke, in rect: CGRect, context ctx: CGContext) {
         let p = st.p
         guard p.count >= 3 else { return }
-        let W = rect.width, H = rect.height
-        func pt(_ i: Int) -> CGPoint { CGPoint(x: rect.minX + p[i] * W, y: rect.minY + p[i + 1] * H) }
+        let W = Double(rect.width), H = Double(rect.height)
+        let ox = Double(rect.minX), oy = Double(rect.minY)
+        func pt(_ i: Int) -> CGPoint { CGPoint(x: ox + p[i] * W, y: oy + p[i + 1] * H) }
         ctx.saveGState()
         ctx.setLineCap(.round)
         ctx.setLineJoin(.round)
@@ -127,7 +128,7 @@ enum Ink {
             ctx.setBlendMode(.multiply)
             ctx.setAlpha(0.38)
             ctx.setStrokeColor(uiColor(st.c.isEmpty ? markerColor : st.c).cgColor)
-            ctx.setLineWidth(st.w * W)
+            ctx.setLineWidth(CGFloat(st.w * W))
             ctx.beginPath()
             ctx.move(to: pt(0))
             var i = 3
@@ -139,12 +140,12 @@ enum Ink {
             ctx.setStrokeColor(color)
             ctx.setFillColor(color)
             if p.count == 3 {
-                let r = st.w * W * (0.4 + 0.8 * p[2]) / 2
+                let r = CGFloat(st.w * W * (0.4 + 0.8 * p[2]) / 2)
                 ctx.fillEllipse(in: CGRect(x: pt(0).x - r, y: pt(0).y - r, width: r * 2, height: r * 2))
             }
             var i = 3
             while i < p.count {
-                ctx.setLineWidth(st.w * W * (0.4 + 0.8 * ((p[i - 1] + p[i + 2]) / 2)))
+                ctx.setLineWidth(CGFloat(st.w * W * (0.4 + 0.8 * ((p[i - 1] + p[i + 2]) / 2))))
                 ctx.beginPath()
                 ctx.move(to: pt(i - 3))
                 ctx.addLine(to: pt(i))

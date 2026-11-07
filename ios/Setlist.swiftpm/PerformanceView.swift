@@ -284,11 +284,19 @@ final class InkView: UIView {
 
     private func point(_ t: UITouch) -> [Double] {
         let p = t.location(in: self)
-        let x = min(1, max(0, p.x / max(1, bounds.width)))
-        let y = min(1, max(0, p.y / max(1, bounds.height)))
-        var pressure = 0.5
-        if t.type == .pencil, t.maximumPossibleForce > 0 { pressure = min(1, max(0.05, t.force / t.maximumPossibleForce)) }
-        return [(x * 10000).rounded() / 10000, (y * 10000).rounded() / 10000, (pressure * 100).rounded() / 100]
+        let w = Double(max(1, bounds.width))
+        let h = Double(max(1, bounds.height))
+        let x: Double = min(1.0, max(0.0, Double(p.x) / w))
+        let y: Double = min(1.0, max(0.0, Double(p.y) / h))
+        var pressure: Double = 0.5
+        if t.type == .pencil, t.maximumPossibleForce > 0 {
+            let f = Double(t.force) / Double(t.maximumPossibleForce)
+            pressure = min(1.0, max(0.05, f))
+        }
+        let rx: Double = (x * 10000).rounded() / 10000
+        let ry: Double = (y * 10000).rounded() / 10000
+        let rp: Double = (pressure * 100).rounded() / 100
+        return [rx, ry, rp]
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -328,7 +336,7 @@ final class InkView: UIView {
             let end = t.location(in: self)
             let dx = end.x - start.x, dy = end.y - start.y
             if abs(dx) > 50 && abs(dx) > abs(dy) { config.onSwipe(dx < 0 ? 1 : -1) }
-            else if abs(dx) < 10 && abs(dy) < 10 { config.onTap(end.x / max(1, bounds.width)) }
+            else if abs(dx) < 10 && abs(dy) < 10 { config.onTap(end.x / max(CGFloat(1), bounds.width)) }
         }
         swipeStart = nil
     }
@@ -343,11 +351,15 @@ final class InkView: UIView {
 
     private func eraseAt(_ t: UITouch) {
         let p = t.location(in: self)
-        let W = bounds.width, H = bounds.height
+        let W = Double(bounds.width), H = Double(bounds.height)
+        let px = Double(p.x), py = Double(p.y)
         let keep = strokes.filter { st in
             var i = 0
             while i < st.p.count {
-                if hypot(st.p[i] * W - p.x, st.p[i + 1] * H - p.y) < 14 + st.w * W / 2 { return false }
+                let dx: Double = st.p[i] * W - px
+                let dy: Double = st.p[i + 1] * H - py
+                let limit: Double = 14 + st.w * W / 2
+                if (dx * dx + dy * dy).squareRoot() < limit { return false }
                 i += 3
             }
             return true
