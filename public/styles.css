@@ -166,7 +166,7 @@ main { max-width: 1280px; margin: 0 auto; padding: 0 28px 96px; }
 .hero {
   position: relative; isolation: isolate; overflow: hidden;
   width: 100vw; margin-left: calc(50% - 50vw); margin-top: -64px;
-  min-height: min(90vh, 880px); padding: 120px max(28px, calc(50vw - 612px)) 200px;
+  min-height: min(90vh, 880px); padding: 0 max(28px, calc(50vw - 612px)) 200px;
   display: flex; align-items: flex-end;
   background: #02040c;
 }
@@ -239,15 +239,6 @@ main { max-width: 1280px; margin: 0 auto; padding: 0 28px 96px; }
   }
 }
 .hero-lead { margin: 18px 0 0; max-width: 520px; font-size: 18px; line-height: 1.5; color: rgba(255, 245, 235, 0.86); }
-.hero-motion {
-  display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; padding: 7px 8px 7px 14px;
-  border: 1px solid rgba(255, 245, 235, 0.22); border-radius: 999px; background: rgba(8, 7, 10, 0.45);
-  color: rgba(255, 245, 235, 0.8); font: inherit; font-size: 13px; cursor: pointer;
-  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-}
-.hero-motion > span:first-child { color: #9fd4ff; }
-.hero-motion-x { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: rgba(255, 245, 235, 0.6); font-size: 16px; line-height: 1; }
-.hero-motion-x:active { background: rgba(255, 255, 255, 0.12); }
 .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 30px; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -624,7 +615,7 @@ textarea.plain:focus, input.plain:focus { outline: none; border-color: var(--acc
 @media (max-width: 760px) {
   main { padding: 0 14px 80px; }
   .topbar { padding: 12px 16px; }
-  .hero { margin-top: -58px; min-height: 640px; padding: 104px 20px 170px; }
+  .hero { margin-top: -58px; min-height: 640px; padding: 0 20px 170px; }
   .hero h1 { font-size: clamp(60px, 21vw, 110px); }
   .hero h1 .outline { -webkit-text-stroke-width: 1.5px; }
   .hero-lead { font-size: 16px; }
