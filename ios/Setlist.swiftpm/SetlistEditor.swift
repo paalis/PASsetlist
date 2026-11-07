@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 @MainActor
 struct SetlistEditor: View {
@@ -15,6 +16,10 @@ struct SetlistEditor: View {
     @State private var makingBook = false
     @State private var toast: String?
     @State private var infoOpen = false
+    @State private var coverImage: UIImage?
+    @State private var coverMenu = false
+    @State private var pickingCover = false
+    @State private var coverPick: PhotosPickerItem?
 
     struct ItemRef: Identifiable { let id: String }
     struct StageStart: Identifiable { let id = UUID(); let itemID: String? }
@@ -53,6 +58,15 @@ struct SetlistEditor: View {
         .sheet(isPresented: $showingAdd) { NewSetlistSheet(target: $setlist) }
         .sheet(item: Binding(get: { songbookURL.map { URLItem(url: $0) } }, set: { songbookURL = $0?.url })) { item in
             PDFPreview(url: item.url, title: "Notehefte")
+        }
+        .task(id: setlist.coverFile?.id) { await loadCover() }
+        .onChange(of: coverPick) { _, pick in
+            guard let pick else { return }
+            Task {
+                if let data = try? await pick.loadTransferable(type: Data.self) { setCover(data) }
+                else { show("Klarte ikke å hente bildet.") }
+                coverPick = nil
+            }
         }
         .overlay(alignment: .bottom) {
             if let toast {
@@ -210,8 +224,22 @@ struct SetlistEditor: View {
 
                 // Vinylplaten til venstre for tittelen, som et albumcover
                 HStack(alignment: .center, spacing: sizeClass == .regular ? 28 : 16) {
-                    Vinyl(size: sizeClass == .regular ? 150 : 96, spinning: true, coverURL: setlist.cover, label: vinylLabel)
-                        .padding(.vertical, 6)
+                    Button { coverMenu = true } label: {
+                        Vinyl(size: sizeClass == .regular ? 150 : 96, spinning: true, coverURL: setlist.cover, coverImage: coverImage, label: vinylLabel)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 6)
+                    .accessibilityLabel("Vinylbilde")
+                    .accessibilityHint("Velg eller fjern bilde i vinylen")
+                    .confirmationDialog("Bilde i vinylen", isPresented: $coverMenu, titleVisibility: .visible) {
+                        Button("Velg bilde …") { pickingCover = true }
+                        if setlist.coverFile != nil {
+                            Button("Fjern bilde", role: .destructive) { removeCover() }
+                        }
+                    } message: {
+                        Text(setlist.cover.isEmpty ? "Bildet vises midt på vinylplaten." : "Bildet vises i stedet for Spotify-coveret.")
+                    }
+                    .photosPicker(isPresented: $pickingCover, selection: $coverPick, matching: .images)
                     VStack(alignment: .leading, spacing: 6) {
                         Eyebrow(text: "Setlist")
                         PosterTitleField(text: $setlist.name)
@@ -278,6 +306,44 @@ struct SetlistEditor: View {
             return
         }
         performFrom = StageStart(itemID: nil)
+    }
+
+    // MARK: - Bilde i vinylen
+
+    private func loadCover() async {
+        guard let ref = setlist.coverFile else { coverImage = nil; return }
+        if let url = try? await store.ensureFile(ref) { coverImage = UIImage(contentsOfFile: url.path) }
+    }
+
+    /// Beskjærer til kvadrat (maks 800 px), lagrer som fil og deler den med bandet.
+    private func setCover(_ data: Data) {
+        guard let image = UIImage(data: data) else { show("Klarte ikke å lese bildet."); return }
+        let side = min(image.size.width, image.size.height)
+        let out = min(800, side)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let square = UIGraphicsImageRenderer(size: CGSize(width: out, height: out), format: format).image { _ in
+            let k = out / side
+            image.draw(in: CGRect(x: -(image.size.width - side) / 2 * k, y: -(image.size.height - side) / 2 * k,
+                                  width: image.size.width * k, height: image.size.height * k))
+        }
+        guard let jpeg = square.jpegData(compressionQuality: 0.85) else { return }
+        do {
+            let old = setlist.coverFile
+            let ref = try store.addFile(data: jpeg, name: "vinyl.jpg", type: "image/jpeg")
+            setlist.coverFile = ref
+            coverImage = square
+            if let old { store.cleanupFiles([old]) }
+        } catch {
+            show(error.localizedDescription)
+        }
+    }
+
+    private func removeCover() {
+        guard let old = setlist.coverFile else { return }
+        setlist.coverFile = nil
+        coverImage = nil
+        store.cleanupFiles([old])
     }
 
     private func startHere(_ item: SetlistItem) {

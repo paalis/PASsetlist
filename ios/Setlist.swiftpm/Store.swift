@@ -114,7 +114,7 @@ final class Store: ObservableObject {
     }
 
     func delete(_ id: String) {
-        let removedFiles = setlist(id)?.items.flatMap(\.files) ?? []
+        let removedFiles = setlist(id)?.allFiles ?? []
         setlists.removeAll { $0.id == id }
         state.pendingUpserts.remove(id)
         if code != nil { state.pendingDeletes.insert(id) }
@@ -140,7 +140,7 @@ final class Store: ObservableObject {
 
     /// Sletter filer (lokalt og i skyen) som ingen låt bruker lenger.
     func cleanupFiles(_ candidates: [FileRef]) {
-        let used = Set(setlists.flatMap { $0.items.flatMap { $0.files.map(\.id) } })
+        let used = Set(setlists.flatMap { $0.allFiles.map(\.id) })
         for f in candidates where !used.contains(f.id) {
             try? FileManager.default.removeItem(at: fileURL(f))
             removeLocalNotes(fileID: f.id)
@@ -284,7 +284,7 @@ final class Store: ObservableObject {
     /// Laster ned alle filer i alle setlister i bakgrunnen, så de virker uten nett på scenen.
     private func prefetchFiles() {
         guard !prefetching, online, code != nil else { return }
-        let missing = setlists.flatMap { $0.items.flatMap(\.files) }.filter { !hasLocal($0) }
+        let missing = setlists.flatMap(\.allFiles).filter { !hasLocal($0) }
         guard !missing.isEmpty else { return }
         prefetching = true
         Task {

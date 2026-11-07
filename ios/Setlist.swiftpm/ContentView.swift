@@ -183,6 +183,7 @@ struct Vinyl: View {
     var size: CGFloat
     var spinning = false
     var coverURL: String = ""
+    var coverImage: UIImage? = nil
     var label: (big: String, small: String)? = nil
     @State private var angle = 0.0
 
@@ -195,7 +196,7 @@ struct Vinyl: View {
             }
             AngularGradient(colors: [.clear, .white.opacity(0.06), .clear, .clear, .white.opacity(0.05), .clear], center: .center)
                 .clipShape(Circle())
-            labelView.frame(width: size * 0.4, height: size * 0.4)
+            labelView.frame(width: size * 0.48, height: size * 0.48)
                 .rotationEffect(.degrees(-angle)) // etiketten står stille, platen snurrer
             Circle().fill(Theme.bg).frame(width: max(3, size * 0.03))
         }
@@ -210,7 +211,9 @@ struct Vinyl: View {
 
     @ViewBuilder private var labelView: some View {
         ZStack {
-            if let url = URL(string: coverURL), !coverURL.isEmpty {
+            if let coverImage {
+                Image(uiImage: coverImage).resizable().scaledToFill().overlay(Color.black.opacity(0.28))
+            } else if let url = URL(string: coverURL), !coverURL.isEmpty {
                 AsyncImage(url: url) { image in
                     image.resizable().scaledToFill().overlay(Color.black.opacity(0.28))
                 } placeholder: { redLabel }
@@ -218,12 +221,11 @@ struct Vinyl: View {
                 redLabel
             }
             if let label {
-                VStack(spacing: size * 0.02) {
-                    Text(label.big).font(.system(size: size * 0.1, weight: .heavy))
-                    Text(label.small).font(.system(size: size * 0.03, weight: .bold)).tracking(2)
+                VStack(spacing: size * 0.07) { // hullet i midten havner mellom dag og måned
+                    Text(label.big).font(.system(size: size * 0.17, weight: .heavy)).minimumScaleFactor(0.5).lineLimit(1)
+                    Text(label.small).font(.system(size: size * 0.06, weight: .heavy)).tracking(size * 0.012)
                 }
                 .foregroundStyle(.white).shadow(color: .black.opacity(0.8), radius: 4)
-                .offset(y: -size * 0.005)
             }
         }
         .clipShape(Circle())

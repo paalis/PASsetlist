@@ -67,6 +67,8 @@ struct Setlist: Codable, Hashable, Identifiable {
     var notes: String
     var spotifyUrl: String
     var cover: String
+    /// Eget bilde i vinylen (fil i bandets filer). Går foran Spotify-coveret. Nettsiden beholder feltet uendret.
+    var coverFile: FileRef?
     var createdAt: Int // millisekunder
     var updatedAt: Int
     var items: [SetlistItem]
@@ -85,12 +87,15 @@ struct Setlist: Codable, Hashable, Identifiable {
         notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
         spotifyUrl = try c.decodeIfPresent(String.self, forKey: .spotifyUrl) ?? ""
         cover = try c.decodeIfPresent(String.self, forKey: .cover) ?? ""
+        coverFile = try? c.decodeIfPresent(FileRef.self, forKey: .coverFile)
         createdAt = Int(try c.decodeIfPresent(Double.self, forKey: .createdAt) ?? 0)
         updatedAt = Int(try c.decodeIfPresent(Double.self, forKey: .updatedAt) ?? 0)
         items = try c.decodeIfPresent([SetlistItem].self, forKey: .items) ?? []
     }
 
     var songs: [SetlistItem] { items.filter { !$0.isBreak } }
+    /// Alle filer setlisten bruker (låtfiler + vinylbilde).
+    var allFiles: [FileRef] { items.flatMap(\.files) + (coverFile.map { [$0] } ?? []) }
     var songCount: Int { songs.count }
     var totalMs: Int { items.reduce(0) { $0 + $1.durationMs } }
 
