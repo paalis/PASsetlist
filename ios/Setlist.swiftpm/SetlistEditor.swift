@@ -8,7 +8,7 @@ struct SetlistEditor: View {
 
     @State private var editMode: EditMode = .inactive
     @State private var filesFor: ItemRef?
-    @State private var performing = false
+    @State private var performFrom: StageStart?
     @State private var showingPrint = false
     @State private var showingAdd = false
     @State private var songbookURL: URL?
@@ -17,6 +17,7 @@ struct SetlistEditor: View {
     @State private var infoOpen = false
 
     struct ItemRef: Identifiable { let id: String }
+    struct StageStart: Identifiable { let id = UUID(); let itemID: String? }
 
     var body: some View {
         trackList
@@ -34,11 +35,19 @@ struct SetlistEditor: View {
         .toolbarBackground(Theme.bg, for: .navigationBar)
         .sheet(item: $filesFor) { ref in
             if let i = setlist.items.firstIndex(where: { $0.id == ref.id }) {
-                AttachmentsSheet(item: $setlist.items[i]).environmentObject(store)
+                AttachmentsSheet(item: $setlist.items[i], onStartHere: {
+                    filesFor = nil
+                    let id = ref.id
+                    Task {
+                        try? await Task.sleep(nanoseconds: 450_000_000) // la arket lukke seg først
+                        performFrom = StageStart(itemID: id)
+                    }
+                })
+                .environmentObject(store)
             }
         }
-        .fullScreenCover(isPresented: $performing) {
-            PerformanceView(setlist: setlist).environmentObject(store)
+        .fullScreenCover(item: $performFrom) { start in
+            PerformanceView(setlist: setlist, startItemID: start.itemID).environmentObject(store)
         }
         .sheet(isPresented: $showingPrint) { PrintSheet(setlist: setlist) }
         .sheet(isPresented: $showingAdd) { NewSetlistSheet(target: $setlist) }
@@ -226,6 +235,13 @@ struct SetlistEditor: View {
             Section {
                 ForEach($setlist.items) { $item in
                     ItemRow(item: $item, number: numbers[item.id]) { filesFor = ItemRef(id: item.id) }
+                        .contextMenu {
+                            if !item.isBreak {
+                                Button { startHere(item) } label: { Label("Start scenemodus herfra", systemImage: "play.fill") }
+                                    .disabled(item.files.isEmpty)
+                                Button { filesFor = ItemRef(id: item.id) } label: { Label("Tekst og noter", systemImage: "music.note") }
+                            }
+                        }
                         .listRowBackground(item.isBreak ? Theme.accent.opacity(0.08) : Color.clear)
                         .listRowSeparatorTint(Theme.line)
                 }
@@ -261,7 +277,15 @@ struct SetlistEditor: View {
             show("Ingen låter har noter ennå – trykk på notesymbolet på en låt.")
             return
         }
-        performing = true
+        performFrom = StageStart(itemID: nil)
+    }
+
+    private func startHere(_ item: SetlistItem) {
+        guard !item.files.isEmpty else {
+            show("«\(item.title)» har ingen noter ennå – trykk på notesymbolet for å legge til.")
+            return
+        }
+        performFrom = StageStart(itemID: item.id)
     }
 
     private func makeSongbook() {

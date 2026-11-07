@@ -7,6 +7,7 @@ import PDFKit
 /// Én side i notevisningen.
 struct NotePage: Identifiable {
     let id: String
+    let itemID: String
     let song: Int
     let title: String
     let next: String?

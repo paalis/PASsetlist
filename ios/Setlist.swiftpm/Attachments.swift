@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 @MainActor
 struct AttachmentsSheet: View {
     @Binding var item: SetlistItem
+    var onStartHere: (() -> Void)? = nil
     @EnvironmentObject private var store: Store
     @Environment(\.dismiss) private var dismiss
 
@@ -50,6 +51,15 @@ struct AttachmentsSheet: View {
                     Text(store.code == nil
                          ? "Filene lagres på denne iPaden. Logg inn med bandkoden for å dele dem med bandet."
                          : "Filene lagres på iPaden og deles med alle som bruker samme kode.")
+                }
+
+                if let onStartHere, !item.files.isEmpty {
+                    Section {
+                        Button(action: onStartHere) {
+                            Label("Start scenemodus herfra", systemImage: "play.fill").font(.headline)
+                        }
+                        .foregroundStyle(Theme.accent)
+                    }
                 }
 
                 Section {

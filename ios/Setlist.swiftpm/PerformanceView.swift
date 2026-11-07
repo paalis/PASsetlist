@@ -9,6 +9,7 @@ import UIKit
 @MainActor
 struct PerformanceView: View {
     let setlist: Setlist
+    var startItemID: String? = nil
     @EnvironmentObject private var store: Store
     @Environment(\.dismiss) private var dismiss
 
@@ -25,6 +26,8 @@ struct PerformanceView: View {
     @State private var saveTask: Task<Void, Never>?
     @State private var pageImage: UIImage?
     @State private var hint: String?
+    @State private var showingSongs = false
+    @State private var backTo: Int?
     @State private var pencilSeen = false
     @FocusState private var focused: Bool
 
@@ -61,6 +64,29 @@ struct PerformanceView: View {
                 }
             }
         }
+        .overlay(alignment: .topLeading) {
+            if showingSongs {
+                ZStack(alignment: .topLeading) {
+                    Color.black.opacity(0.001).ignoresSafeArea() // trykk utenfor lukker
+                        .onTapGesture { withAnimation { showingSongs = false } }
+                    songList.padding(.top, 62).padding(.leading, 14)
+                }
+                .transition(.opacity)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if let backTo, pages.indices.contains(backTo) {
+                let from = pages[backTo]
+                Button { jumpBack() } label: {
+                    Text("↩ Tilbake til \(from.song). \(from.title)").font(.subheadline.bold()).foregroundStyle(.black)
+                        .padding(.horizontal, 18).padding(.vertical, 11)
+                        .background(Color(hex: 0xF6F3EF), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, hint == nil ? 28 : 84)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .overlay(alignment: .bottom) {
             if let hint {
                 Text(hint).font(.subheadline.bold()).foregroundStyle(.black)
@@ -78,7 +104,10 @@ struct PerformanceView: View {
         .focused($focused)
         .onKeyPress(keys: [.rightArrow, .downArrow, .space, .pageDown]) { _ in go(1); return .handled }
         .onKeyPress(keys: [.leftArrow, .upArrow, .pageUp]) { _ in go(-1); return .handled }
-        .onKeyPress(.escape) { close(); return .handled }
+        .onKeyPress(.escape) {
+            if showingSongs { withAnimation { showingSongs = false } } else { close() }
+            return .handled
+        }
         .task { await buildPages() }
         .task(id: current) { await pollRemote() }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true; focused = true }
@@ -93,10 +122,22 @@ struct PerformanceView: View {
                 .background(Theme.surface2, in: RoundedRectangle(cornerRadius: 10))
             if pages.indices.contains(current) {
                 let pg = pages[current]
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("\(pg.song). \(pg.title)".uppercased()).font(Theme.poster(22)).lineLimit(1)
-                    Text(pg.next.map { "Neste: \($0)" } ?? "Siste låt").font(.system(size: 13)).foregroundStyle(Theme.muted).lineLimit(1)
+                // Trykk på tittelen for å hoppe til en annen låt
+                Button { withAnimation(.easeOut(duration: 0.15)) { showingSongs.toggle() } } label: {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: 6) {
+                            Text("\(pg.song). \(pg.title)".uppercased()).font(Theme.poster(22)).lineLimit(1)
+                            Image(systemName: "chevron.down").font(.system(size: 12, weight: .bold))
+                                .rotationEffect(.degrees(showingSongs ? 180 : 0))
+                        }
+                        Text(pg.next.map { "Neste: \($0)" } ?? "Siste låt").font(.system(size: 13)).foregroundStyle(Theme.muted).lineLimit(1)
+                    }
+                    .padding(.horizontal, 8).padding(.vertical, 2)
+                    .background(showingSongs ? Theme.surface2 : Color.clear, in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(Theme.text)
                 }
+                .buttonStyle(.plain)
+                .accessibilityHint("Vis alle låtene og hopp til en annen")
             }
             Spacer()
             HStack(spacing: 6) {
@@ -166,14 +207,17 @@ struct PerformanceView: View {
                 loadingText = "Henter noter … \(done)/\(total)"
                 guard let url = try? await store.ensureFile(f), let source = PageSource(url: url, ref: f) else { continue }
                 for i in 0..<source.pageCount {
-                    result.append(NotePage(id: "\(f.id)_\(i)", song: numbers[item.id] ?? 0, title: item.title,
+                    result.append(NotePage(id: "\(f.id)_\(i)", itemID: item.id, song: numbers[item.id] ?? 0, title: item.title,
                                            next: setlist.nextSongTitle(after: item.id), file: f, index: i, source: source))
                 }
             }
         }
         pages = result
         if pages.isEmpty { loadingText = "Ingen noter å vise (er filene lastet ned?)." }
-        else { await showPage(0) }
+        else {
+            let start = startItemID.flatMap { id in pages.firstIndex { $0.itemID == id } } ?? 0
+            await showPage(start)
+        }
     }
 
     private func renderPage(_ pg: NotePage, width: CGFloat) async {
@@ -255,6 +299,80 @@ struct PerformanceView: View {
         saveTask = nil
         let pg = pages[current]
         store.saveNotes(strokes, fileID: pg.file.id, page: pg.index)
+    }
+
+    // MARK: - Låtoversikt
+
+    private var songList: some View {
+        let numbers = setlist.numbers
+        let currentItem = pages.indices.contains(current) ? pages[current].itemID : nil
+        return VStack(alignment: .leading, spacing: 0) {
+            Eyebrow(text: "Hopp til låt", color: Theme.muted).padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 6)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 2) {
+                        ForEach(setlist.items) { item in
+                            if item.isBreak {
+                                Text((item.title.isEmpty ? "Pause" : item.title).uppercased())
+                                    .font(.system(size: 10.5, weight: .bold)).tracking(2.4).foregroundStyle(Theme.accent)
+                                    .frame(maxWidth: .infinity).padding(.vertical, 6)
+                                    .overlay(alignment: .top) { Rectangle().fill(Theme.accent.opacity(0.35)).frame(height: 1) }
+                                    .overlay(alignment: .bottom) { Rectangle().fill(Theme.accent.opacity(0.35)).frame(height: 1) }
+                                    .padding(.horizontal, 10).padding(.vertical, 4)
+                            } else {
+                                let has = pages.contains { $0.itemID == item.id }
+                                let isCurrent = item.id == currentItem
+                                Button { jump(to: item.id) } label: {
+                                    HStack(spacing: 12) {
+                                        Text("\(numbers[item.id] ?? 0)").font(.system(size: 16, weight: .heavy).monospacedDigit())
+                                            .foregroundStyle(Theme.accent).frame(minWidth: 26, alignment: .trailing)
+                                        Text(item.title.isEmpty ? "–" : item.title).font(.system(size: 16, weight: .semibold)).lineLimit(1)
+                                        Spacer(minLength: 8)
+                                        if !item.key.isEmpty { Text(item.key).font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.muted) }
+                                        if !has { Text("ingen noter").font(.system(size: 11)).foregroundStyle(Theme.muted) }
+                                    }
+                                    .foregroundStyle(Theme.text)
+                                    .padding(.horizontal, 10).frame(minHeight: 46)
+                                    .background(isCurrent ? Theme.accent.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 10))
+                                    .overlay(alignment: .leading) { if isCurrent { Rectangle().fill(Theme.accent).frame(width: 3) } }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(!has)
+                                .opacity(has ? 1 : 0.4)
+                                .id(item.id)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 6).padding(.bottom, 8)
+                }
+                .onAppear { if let currentItem { proxy.scrollTo(currentItem, anchor: .center) } }
+            }
+        }
+        .frame(width: 400, height: min(560, CGFloat(setlist.items.count) * 48 + 64))
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.border))
+        .shadow(color: .black.opacity(0.7), radius: 30, y: 16)
+    }
+
+    private func jump(to itemID: String) {
+        guard let to = pages.firstIndex(where: { $0.itemID == itemID }) else { return }
+        withAnimation { showingSongs = false }
+        if pages[current].itemID != itemID {
+            let from = current
+            withAnimation { backTo = from }
+            Task {
+                try? await Task.sleep(nanoseconds: 7_000_000_000)
+                withAnimation { if backTo == from { backTo = nil } }
+            }
+        }
+        Task { await showPage(to) }
+    }
+
+    private func jumpBack() {
+        guard let target = backTo else { return }
+        withAnimation { backTo = nil }
+        Task { await showPage(target) }
     }
 
     private func showHint(_ text: String) {
