@@ -19,18 +19,7 @@ struct SetlistEditor: View {
     struct ItemRef: Identifiable { let id: String }
 
     var body: some View {
-        Group {
-            if sizeClass == .regular {
-                HStack(spacing: 0) {
-                    ScrollView { deck.padding(24) }
-                        .frame(width: 340)
-                        .overlay(alignment: .trailing) { Rectangle().fill(Theme.line).frame(width: 1) }
-                    trackList
-                }
-            } else {
-                trackList
-            }
-        }
+        trackList
         .background(Theme.bg)
         .environment(\.editMode, $editMode)
         .toolbar {
@@ -77,17 +66,7 @@ struct SetlistEditor: View {
 
     // MARK: - Venstre: vinyl, infotabell og knapper
 
-    private var deck: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Spacer()
-                Vinyl(size: 250, spinning: true, coverURL: setlist.cover, label: vinylLabel)
-                Spacer()
-            }
-            .padding(.vertical, 6)
-            infoSection
-        }
-    }
+    // MARK: - Info (folder ut under tittelen)
 
     /// «Info»-knapp med kort oppsummering; folder ut dato, sted, låter, spilletid, åpningslåt, noter og notater.
     private var infoSection: some View {
@@ -220,23 +199,28 @@ struct SetlistEditor: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Eyebrow(text: "Setlist")
-                    PosterTitleField(text: $setlist.name)
-                    (Text("\(setlist.songCount)").bold() + Text(" låter").foregroundColor(Theme.muted)
-                        + Text(setlist.totalMs > 0 ? " · " : "").foregroundColor(Theme.muted)
-                        + Text(setlist.totalMs > 0 ? formatTotal(setlist.totalMs) : "").bold())
-                        .font(.system(size: 14))
+                // Vinylplaten til venstre for tittelen, som et albumcover
+                HStack(alignment: .center, spacing: sizeClass == .regular ? 28 : 16) {
+                    Vinyl(size: sizeClass == .regular ? 150 : 96, spinning: true, coverURL: setlist.cover, label: vinylLabel)
+                        .padding(.vertical, 6)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Eyebrow(text: "Setlist")
+                        PosterTitleField(text: $setlist.name)
+                        (Text("\(setlist.songCount)").bold() + Text(" låter").foregroundColor(Theme.muted)
+                            + Text(setlist.totalMs > 0 ? " · " : "").foregroundColor(Theme.muted)
+                            + Text(setlist.totalMs > 0 ? formatTotal(setlist.totalMs) : "").bold())
+                            .font(.system(size: 14))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(.vertical, 8)
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
-                if sizeClass != .regular {
-                    infoSection
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                }
+                infoSection
+                    .frame(maxWidth: sizeClass == .regular ? 560 : .infinity, alignment: .leading)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
 
             Section {
