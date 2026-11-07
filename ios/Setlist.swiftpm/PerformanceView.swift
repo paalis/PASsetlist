@@ -24,6 +24,8 @@ struct PerformanceView: View {
     @State private var drawingNow = false
     @State private var saveTask: Task<Void, Never>?
     @State private var pageImage: UIImage?
+    @State private var hint: String?
+    @State private var pencilSeen = false
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -41,7 +43,8 @@ struct PerformanceView: View {
                             if let pageImage { Image(uiImage: pageImage).resizable() } else { Color.white }
                             InkCanvas(strokes: strokes, tool: tool, color: color, fingerDraws: fingerDraws, enabled: loaded,
                                       onStroke: commit, onErase: erase, onBegin: beginEdit, onDrawingChange: { drawingNow = $0 },
-                                      onSwipe: { go($0) }, onTap: { x in if x < 0.3 { go(-1) } else if x > 0.7 { go(1) } })
+                                      onSwipe: { go($0) }, onTap: { x in if x < 0.3 { go(-1) } else if x > 0.7 { go(1) } else { toolHint() } },
+                                      onPencil: { pencilSeen = true })
                         }
                         .frame(width: size.width, height: size.height)
                         .shadow(color: .black.opacity(0.6), radius: 20, y: 8)
@@ -56,6 +59,15 @@ struct PerformanceView: View {
                     }
                     .padding(.horizontal, 10)
                 }
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if let hint {
+                Text(hint).font(.subheadline.bold()).foregroundStyle(.black)
+                    .padding(.horizontal, 18).padding(.vertical, 11)
+                    .background(Color(hex: 0xF6F3EF), in: Capsule())
+                    .padding(.bottom, 28)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .background(Color(hex: 0x050407))
@@ -88,18 +100,27 @@ struct PerformanceView: View {
             }
             Spacer()
             HStack(spacing: 6) {
-                toolButton(active: fingerDraws, label: "Tegn med finger") {
-                    Image(systemName: "hand.draw").font(.system(size: 16))
-                } action: { fingerDraws.toggle() }
+                Button {
+                    fingerDraws.toggle()
+                    showHint(fingerDraws ? "Tegning med finger/mus er på – bla med pilene eller piltastene." : "Fingeren blar igjen. Apple Pencil tegner alltid.")
+                } label: {
+                    Label("Tegn", systemImage: "hand.draw")
+                        .font(.system(size: 13, weight: .bold)).textCase(.uppercase)
+                        .padding(.horizontal, 12).frame(height: 40)
+                        .background(fingerDraws ? Theme.accent.opacity(0.18) : Theme.surface2, in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(fingerDraws ? Theme.accent : Theme.border))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Tegn med finger")
                 ForEach(Ink.colors, id: \.hex) { c in
                     toolButton(active: tool == "pen" && color == c.hex, label: "Penn \(c.name)") {
                         Circle().fill(Color(css: c.hex)).frame(width: 16, height: 16).overlay(Circle().stroke(.white.opacity(0.85), lineWidth: 2))
-                    } action: { tool = "pen"; color = c.hex }
+                    } action: { tool = "pen"; color = c.hex; toolHint() }
                 }
                 toolButton(active: tool == "marker", label: "Markør") {
                     Image(systemName: "highlighter").foregroundStyle(Color(hex: 0xFFD400))
-                } action: { tool = "marker" }
-                toolButton(active: tool == "eraser", label: "Viskelær") { Image(systemName: "eraser") } action: { tool = "eraser" }
+                } action: { tool = "marker"; toolHint() }
+                toolButton(active: tool == "eraser", label: "Viskelær") { Image(systemName: "eraser") } action: { tool = "eraser"; toolHint() }
                 toolButton(active: false, label: "Angre") { Image(systemName: "arrow.uturn.backward") } action: { undoLast() }
             }
             Text(pages.isEmpty ? "" : "\(current + 1)/\(pages.count)")
@@ -236,6 +257,20 @@ struct PerformanceView: View {
         store.saveNotes(strokes, fileID: pg.file.id, page: pg.index)
     }
 
+    private func showHint(_ text: String) {
+        withAnimation { hint = text }
+        Task {
+            try? await Task.sleep(nanoseconds: 3_200_000_000)
+            withAnimation { if hint == text { hint = nil } }
+        }
+    }
+
+    private func toolHint() {
+        if !fingerDraws && !pencilSeen {
+            showHint("Tegn med Apple Pencil – eller trykk «Tegn» for å tegne med fingeren/musen.")
+        }
+    }
+
     private func close() {
         flushSave()
         dismiss()
@@ -256,6 +291,7 @@ struct InkCanvas: UIViewRepresentable {
     var onDrawingChange: (Bool) -> Void
     var onSwipe: (Int) -> Void
     var onTap: (CGFloat) -> Void
+    var onPencil: () -> Void = {}
 
     func makeUIView(context: Context) -> InkView {
         let v = InkView()
@@ -301,6 +337,7 @@ final class InkView: UIView {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let t = touches.first, let config else { return }
+        if t.type == .pencil { config.onPencil() }
         if draws(t) {
             config.onBegin()
             config.onDrawingChange(true)
