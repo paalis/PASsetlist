@@ -67,6 +67,7 @@ export async function createStage({ fov = 45, cameraZ = 10 } = {}) {
     reducedMotion: reduceQuery.matches,
     pointer: { x: 0, y: 0, active: false }, // -1..1, myk (lerp)
     pointerTarget: { x: 0, y: 0 },
+    tilt: false, // true når vipping av telefon/nettbrett styrer «pekeren»
     scroll: 0, // 0 = toppen, 1 = effekten er fullført (se updateScroll)
     scrollable: false,
     time: 0,
@@ -129,6 +130,29 @@ export async function createStage({ fov = 45, cameraZ = 10 } = {}) {
     state.pointerTarget.y = 0;
     state.pointer.active = false;
   };
+  // Vipping (mobil/nettbrett): målt mot en nullstilling som sakte følger hvordan
+  // enheten holdes, så det er bevegelsen – ikke vinkelen – som flytter scenen.
+  const tilt = { base: null, last: 0 };
+  const onOrientation = (e) => {
+    if (e.beta == null || e.gamma == null || !state.mobile) return;
+    const angle = (screen.orientation?.angle ?? window.orientation ?? 0) % 360;
+    let x = e.gamma, y = e.beta; // stående: gamma = sideveis, beta = forover/bakover
+    if (angle === 90) [x, y] = [e.beta, -e.gamma];
+    else if (angle === 270 || angle === -90) [x, y] = [-e.beta, e.gamma];
+    else if (angle === 180) [x, y] = [-e.gamma, -e.beta];
+    const now = performance.now();
+    if (!tilt.base || now - tilt.last > 1000) tilt.base = { x, y };
+    const k = Math.min(1, (now - tilt.last) / 4000); // nullstillingen glir etter på ~4 s
+    tilt.last = now;
+    tilt.base.x += (x - tilt.base.x) * k;
+    tilt.base.y += (y - tilt.base.y) * k;
+    const clamp = (v) => Math.max(-1, Math.min(1, v));
+    state.pointerTarget.x = clamp((x - tilt.base.x) / 18);
+    state.pointerTarget.y = clamp((tilt.base.y - y) / 18);
+    state.pointer.active = true;
+    state.tilt = true;
+  };
+
   const onScroll = () => {
     updateScroll();
     if (!running) renderOnce();
@@ -245,6 +269,7 @@ export async function createStage({ fov = 45, cameraZ = 10 } = {}) {
       window.removeEventListener('pointermove', onPointer);
       document.documentElement.removeEventListener('pointerleave', onPointerLeave);
       window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('deviceorientation', onOrientation);
       document.removeEventListener('visibilitychange', onVisibility);
       reduceQuery.removeEventListener('change', onMotionChange);
       fineQuery.removeEventListener('change', onMotionChange);
@@ -256,6 +281,7 @@ export async function createStage({ fov = 45, cameraZ = 10 } = {}) {
   window.addEventListener('pointermove', onPointer, { passive: true });
   document.documentElement.addEventListener('pointerleave', onPointerLeave);
   window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('deviceorientation', onOrientation);
   document.addEventListener('visibilitychange', onVisibility);
   reduceQuery.addEventListener('change', onMotionChange);
   fineQuery.addEventListener('change', onMotionChange);

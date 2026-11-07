@@ -4,8 +4,8 @@
 //
 //   stage.add(createCameraRig({ strengthX: 0.8, strengthY: 0.45 }));
 //
-// Ved scroll flyr kameraet fremover (travel). Musparallaksen er av på mobil/touch,
-// og ved redusert bevegelse står kameraet helt stille.
+// Ved scroll flyr kameraet fremover (travel). På mobil/nettbrett styres parallaksen av
+// vipping (state.tilt), og ved redusert bevegelse står kameraet helt stille.
 
 const smoothstep = (t) => t * t * (3 - 2 * t);
 
@@ -20,7 +20,7 @@ export function createCameraRig({ strengthX = 0.8, strengthY = 0.45, smoothing =
     },
     update(_t, dt, state, camera) {
       if (!base) base = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
-      const allowed = !state.mobile && !state.reducedMotion;
+      const allowed = (!state.mobile || state.tilt) && !state.reducedMotion;
       const tx = allowed ? state.pointer.x * strengthX : 0;
       const ty = allowed ? state.pointer.y * strengthY : 0;
       // Rolig, bildefrekvensuavhengig utjevning

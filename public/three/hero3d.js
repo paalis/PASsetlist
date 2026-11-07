@@ -46,6 +46,61 @@ async function ensureStage() {
   return promise;
 }
 
+// iPhone/iPad krever at brukeren gir lov til bevegelsessensoren med et trykk.
+// Første gang vises en liten knapp i hero; er det allerede godkjent, spørres det
+// stille på nytt ved første berøring (Safari husker ikke alltid svaret).
+const MOTION_KEY = 'setlistlive.motion';
+const needsPermission = () =>
+  typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
+const touchDevice = () => !window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+const readMotion = () => {
+  try { return localStorage.getItem(MOTION_KEY); } catch (_) { return null; }
+};
+const saveMotion = (v) => {
+  try { localStorage.setItem(MOTION_KEY, v); } catch (_) {}
+};
+let motionAsked = false;
+
+async function askMotion() {
+  motionAsked = true;
+  try {
+    const answer = await DeviceOrientationEvent.requestPermission();
+    saveMotion(answer === 'granted' ? 'granted' : 'denied');
+  } catch (_) {
+    saveMotion('denied');
+  }
+  document.querySelector('.hero-motion')?.remove();
+}
+
+function setupMotion(hero) {
+  if (!needsPermission() || !touchDevice() || motionAsked) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const saved = readMotion();
+  if (saved === 'denied') return;
+  if (saved === 'granted') {
+    document.addEventListener('touchend', askMotion, { once: true, passive: true });
+    return;
+  }
+  if (hero.querySelector('.hero-motion')) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'hero-motion';
+  btn.innerHTML = '<span aria-hidden="true">✦</span> La lysene følge bevegelsen';
+  btn.addEventListener('click', askMotion);
+  const close = document.createElement('span');
+  close.className = 'hero-motion-x';
+  close.setAttribute('role', 'button');
+  close.setAttribute('aria-label', 'Nei takk');
+  close.textContent = '×';
+  close.addEventListener('click', (e) => {
+    e.stopPropagation();
+    saveMotion('denied');
+    btn.remove();
+  });
+  btn.append(close);
+  hero.querySelector('.hero-content')?.append(btn);
+}
+
 async function mount(hero) {
   if (!hero) return;
   const mine = ++generation;
@@ -53,6 +108,7 @@ async function mount(hero) {
   if (!s || mine !== generation || !hero.isConnected) return;
   s.mount(hero, hero.querySelector('.hero-crowd-front'));
   hero.classList.add('has-3d');
+  setupMotion(hero);
   // Mistet grafikkontekst: fjern 3D-laget og behold bare bildet
   s.onContextLost = () => {
     document.querySelector('.hero')?.classList.remove('has-3d');
