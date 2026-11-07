@@ -255,6 +255,8 @@ struct HeroView: View {
                         .frame(width: geo.size.width, height: geo.size.height).clipped()
                 }
                 LinearGradient(colors: [Color(hex: 0x02040C, opacity: 0.8), Color(hex: 0x02040C, opacity: 0.4), .clear], startPoint: .leading, endPoint: .trailing)
+                ParticleField() // lysprikker som følger vippingen av iPaden
+                    .frame(width: geo.size.width, height: geo.size.height)
                 LinearGradient(colors: [.clear, .clear, Theme.bg.opacity(0.9)], startPoint: .top, endPoint: .bottom)
 
                 VStack(alignment: .leading, spacing: 0) {
