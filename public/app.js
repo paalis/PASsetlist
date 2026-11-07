@@ -1400,6 +1400,11 @@ function renderFilesDialog(status = '') {
               .join('')}</ul>`
           : '<p class="files-empty">Ingen filer ennå. Last opp tekst, noter eller akkordskjema.</p>'
       }
+      ${
+        files.length
+          ? `<button type="button" class="btn primary start-here" data-fact-start>▶ Start scenemodus herfra</button>`
+          : ''
+      }
       <label class="upload-zone">
         <input type="file" id="fileInput" multiple
                accept="application/pdf,image/*,text/plain,.pdf,.txt,.pro,.cho,.chopro,.chordpro" />
@@ -1450,6 +1455,12 @@ async function uploadFiles(list) {
 
 filesDialog.addEventListener('click', async (e) => {
   if (e.target === filesDialog) return filesDialog.close(); // klikk utenfor
+  if (e.target.closest('[data-fact-start]') && filesTarget) {
+    const { sl, item } = filesTarget;
+    filesDialog.close();
+    openNotes(sl, null, item.id);
+    return;
+  }
   const btn = e.target.closest('[data-fact]');
   if (!btn || !filesTarget) return;
   const { sl, item } = filesTarget;
@@ -1500,7 +1511,7 @@ function textLayout(text) {
   return pages;
 }
 
-async function openNotes(sl, startFileId = null) {
+async function openNotes(sl, startFileId = null, startItemId = null) {
   if (!window.cloud?.signedIn) {
     toast('Logg inn med kode for å se noter og skrive notater.');
     return;
@@ -1511,7 +1522,7 @@ async function openNotes(sl, startFileId = null) {
   }
   try {
     const { openViewer } = await import('./notes/viewer.js');
-    await openViewer({ sl, startFileId, fileKind, textLayout });
+    await openViewer({ sl, startFileId, startItemId, fileKind, textLayout });
   } catch (err) {
     console.error(err);
     toast(`Klarte ikke å åpne notevisningen: ${err.message}`);

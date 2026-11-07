@@ -78,7 +78,7 @@ function drawStroke(ctx, st, W, H) {
  * @param opts.fileKind    (type, navn) -> 'pdf' | 'image' | 'text' | null
  * @param opts.textLayout  (tekst) -> sider med linjer (samme oppsett som noteheftet)
  */
-export async function openViewer({ sl, startFileId = null, fileKind, textLayout }) {
+export async function openViewer({ sl, startFileId = null, startItemId = null, fileKind, textLayout }) {
   const cloud = window.cloud;
   const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
@@ -89,7 +89,9 @@ export async function openViewer({ sl, startFileId = null, fileKind, textLayout 
   root.innerHTML = `
     <header class="viewer-bar">
       <button type="button" class="vbtn" data-v="close" aria-label="Lukk">✕</button>
-      <div class="viewer-title"><b></b><small></small></div>
+      <button type="button" class="viewer-title" data-v="songs" aria-haspopup="true" aria-expanded="false" title="Hopp til en annen låt">
+        <b></b><small></small>
+      </button>
       <div class="viewer-tools" role="toolbar" aria-label="Notatverktøy">
         ${fine ? '<button type="button" class="vbtn draw-toggle" data-v="draw" aria-pressed="false" title="Tegn med musen">✎ Tegn</button>' : ''}
         ${COLORS.map((c, i) => `<button type="button" class="vbtn swatch${i === 0 ? ' on' : ''}" data-color="${c.value}" style="--c:${c.value}" aria-label="Penn ${c.name}" title="Penn – ${c.name.toLowerCase()}"></button>`).join('')}
@@ -108,6 +110,11 @@ export async function openViewer({ sl, startFileId = null, fileKind, textLayout 
       <button type="button" class="viewer-nav prev" data-v="prev" aria-label="Forrige side">‹</button>
       <button type="button" class="viewer-nav next" data-v="next" aria-label="Neste side">›</button>
       <p class="viewer-msg">Henter noter …</p>
+      <button type="button" class="viewer-back" data-v="back" hidden></button>
+      <div class="viewer-songs" role="dialog" aria-label="Låter i setlisten" hidden>
+        <p class="viewer-songs-head">Hopp til låt</p>
+        <ol></ol>
+      </div>
     </div>`;
   document.body.appendChild(root);
   document.body.classList.add('viewer-open');
@@ -189,7 +196,7 @@ export async function openViewer({ sl, startFileId = null, fileKind, textLayout 
           console.warn('Kunne ikke laste', f.name, err);
         }
         for (let i = 0; i < count; i++) {
-          pages.push({ song: song.n, title: song.item.title || '–', next: nextSong?.title || '', file: f, kind, index: i });
+          pages.push({ song: song.n, itemId: song.item.id, title: song.item.title || '–', next: nextSong?.title || '', file: f, kind, index: i });
         }
       }
       if (closed) return;
@@ -219,7 +226,7 @@ export async function openViewer({ sl, startFileId = null, fileKind, textLayout 
       } catch (_) {}
     }
     if (token !== renderToken) return;
-    $('.viewer-title b').textContent = `${pg.song}. ${pg.title}`;
+    $('.viewer-title b').textContent = `${pg.song}. ${pg.title} ▾`;
     $('.viewer-title small').textContent = pg.next ? `Neste: ${pg.next}` : 'Siste låt';
     $('.viewer-count').textContent = `${current + 1}/${pages.length}`;
     root.querySelector('[data-v="prev"]').disabled = current === 0;
@@ -352,6 +359,56 @@ export async function openViewer({ sl, startFileId = null, fileKind, textLayout 
     showPage(to);
   }
 
+  /* ----- Låtoversikt: hopp til en annen låt ----- */
+
+  const songsPanel = $('.viewer-songs');
+  const backBtn = $('.viewer-back');
+  let backTo = null;
+  let backTimer = 0;
+
+  function renderSongList() {
+    const pg = pages[current];
+    let n = 0;
+    songsPanel.querySelector('ol').innerHTML = sl.items
+      .map((item) => {
+        if (item.type === 'break') return `<li class="vs-break">${esc(item.title || 'Pause')}</li>`;
+        n++;
+        const has = pages.some((p) => p.itemId === item.id);
+        const cur = pg && pg.itemId === item.id;
+        return `<li><button type="button" class="vs-song${cur ? ' current' : ''}" data-jump="${esc(item.id)}" ${has ? '' : 'disabled'}>
+            <span class="vs-n">${n}</span><span class="vs-t">${esc(item.title || '–')}</span>
+            ${item.key ? `<span class="vs-k">${esc(item.key)}</span>` : ''}
+            ${has ? '' : '<span class="vs-none">ingen noter</span>'}
+          </button></li>`;
+      })
+      .join('');
+  }
+
+  function toggleSongs(open = songsPanel.hidden) {
+    songsPanel.hidden = !open;
+    $('.viewer-title').setAttribute('aria-expanded', open);
+    if (open) {
+      renderSongList();
+      songsPanel.querySelector('.current')?.scrollIntoView({ block: 'center' });
+      songsPanel.querySelector('.current, [data-jump]:not([disabled])')?.focus();
+    }
+  }
+
+  function jumpToItem(itemId) {
+    const to = pages.findIndex((p) => p.itemId === itemId);
+    if (to < 0) return;
+    const from = pages[current];
+    toggleSongs(false);
+    if (from && from.itemId !== itemId) {
+      backTo = current;
+      backBtn.textContent = `↩ Tilbake til ${from.song}. ${from.title}`;
+      backBtn.hidden = false;
+      clearTimeout(backTimer);
+      backTimer = setTimeout(() => (backBtn.hidden = true), 7000);
+    }
+    showPage(to);
+  }
+
   /* ----- Penn, markør og viskelær ----- */
 
   const point = (e) => {
@@ -451,6 +508,18 @@ export async function openViewer({ sl, startFileId = null, fileKind, textLayout 
       else if (rel > 0.7) go(1);
     }
   });
+  // Trykk utenfor låtoversikten lukker den (uten å bla eller tegne)
+  root.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (songsPanel.hidden || e.target.closest('.viewer-songs') || e.target.closest('[data-v="songs"]')) return;
+      toggleSongs(false);
+      e.stopPropagation();
+      e.preventDefault();
+    },
+    true
+  );
+
   stage.addEventListener('pointerdown', (e) => {
     if (!e.target.closest('.viewer-page') && !e.target.closest('button')) nav = { id: e.pointerId, x: e.clientX, y: e.clientY };
   });
@@ -469,7 +538,15 @@ export async function openViewer({ sl, startFileId = null, fileKind, textLayout 
     if (!b) return;
     if (b.dataset.color) return setTool('pen', b.dataset.color);
     if (b.dataset.tool) return setTool(b.dataset.tool);
+    if (b.dataset.jump) return jumpToItem(b.dataset.jump);
     switch (b.dataset.v) {
+      case 'songs':
+        return toggleSongs();
+      case 'back':
+        backBtn.hidden = true;
+        if (backTo !== null) showPage(backTo);
+        backTo = null;
+        return;
       case 'close':
         return close();
       case 'prev':
@@ -494,9 +571,10 @@ export async function openViewer({ sl, startFileId = null, fileKind, textLayout 
 
   function onKey(e) {
     if (e.target.closest?.('input, textarea')) return;
+    if (!songsPanel.hidden && e.key !== 'Escape') return; // piltaster i låtlisten styrer fokus
     if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key)) (e.preventDefault(), go(1));
     else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) (e.preventDefault(), go(-1));
-    else if (e.key === 'Escape') close();
+    else if (e.key === 'Escape') (songsPanel.hidden ? close() : toggleSongs(false));
     else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') (e.preventDefault(), root.querySelector('[data-v="undo"]').click());
   }
   document.addEventListener('keydown', onKey);
@@ -541,7 +619,11 @@ export async function openViewer({ sl, startFileId = null, fileKind, textLayout 
     return;
   }
   msg.hidden = true;
-  const start = startFileId ? pages.findIndex((p) => p.file.id === startFileId) : 0;
+  const start = startItemId
+    ? pages.findIndex((p) => p.itemId === startItemId)
+    : startFileId
+      ? pages.findIndex((p) => p.file.id === startFileId)
+      : 0;
   await showPage(Math.max(0, start));
 
   return { close };
