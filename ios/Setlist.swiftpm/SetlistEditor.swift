@@ -85,9 +85,40 @@ struct SetlistEditor: View {
                 Spacer()
             }
             .padding(.vertical, 6)
-            infoTable
-            actions
+            infoSection
         }
+    }
+
+    /// «Info»-knapp med kort oppsummering; folder ut dato, sted, låter, spilletid, åpningslåt, noter og notater.
+    private var infoSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { infoOpen.toggle() }
+            } label: {
+                HStack(spacing: 12) {
+                    Eyebrow(text: "Info")
+                    Text(infoSummary).font(.system(size: 14)).foregroundStyle(Theme.muted).lineLimit(1)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.down").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.muted)
+                        .rotationEffect(.degrees(infoOpen ? 180 : 0))
+                }
+                .padding(.horizontal, 14).frame(minHeight: 48)
+                .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.line))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(infoOpen ? "Skjul info" : "Vis info")
+
+            if infoOpen {
+                infoTable.padding(.top, 6).transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    private var infoSummary: String {
+        let date = setlist.dateValue.map { $0.formatted(.dateTime.day().month(.abbreviated).year()) } ?? ""
+        return [date, setlist.venue, "\(setlist.songCount) låter"].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     private var vinylLabel: (big: String, small: String) {
@@ -149,19 +180,32 @@ struct SetlistEditor: View {
                 set: { setlist.date = Setlist.dayFormatter.string(from: $0) })
     }
 
+    /// Knappene over setlist-tittelen: på én rad når det er plass, ellers to.
     private var actions: some View {
-        VStack(spacing: 8) {
-            Button("▶ Scenemodus") { openStage() }.buttonStyle(PillButtonStyle(kind: .squarePrimary))
+        let stage = Button("▶ Scenemodus") { openStage() }.buttonStyle(PillButtonStyle(kind: .squarePrimary))
+        let book = Button(makingBook ? "Lager …" : "Notehefte") { makeSongbook() }.disabled(makingBook).buttonStyle(PillButtonStyle(kind: .square))
+        let printBtn = Button("Skriv ut") { showingPrint = true }.buttonStyle(PillButtonStyle(kind: .square))
+        let copy = Button("Kopier tekst") { copyText() }.buttonStyle(PillButtonStyle(kind: .square))
+        let spotify = Button("＋ Fra Spotify") { showingAdd = true }.buttonStyle(PillButtonStyle(kind: .square))
+        return ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
-                Button(makingBook ? "Lager …" : "Notehefte") { makeSongbook() }.disabled(makingBook)
-                Button("Skriv ut") { showingPrint = true }
+                stage.frame(minWidth: 170)
+                book.fixedSize()
+                printBtn.fixedSize()
+                copy.fixedSize()
+                spotify.fixedSize()
             }
-            .buttonStyle(PillButtonStyle(kind: .square))
-            HStack(spacing: 8) {
-                Button("Kopier tekst") { copyText() }
-                Button("＋ Fra Spotify") { showingAdd = true }
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    stage
+                    book
+                    printBtn
+                }
+                HStack(spacing: 8) {
+                    copy
+                    spotify
+                }
             }
-            .buttonStyle(PillButtonStyle(kind: .square))
         }
     }
 
@@ -171,6 +215,11 @@ struct SetlistEditor: View {
         let numbers = setlist.numbers
         return List {
             Section {
+                actions
+                    .padding(.top, 8)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+
                 VStack(alignment: .leading, spacing: 6) {
                     Eyebrow(text: "Setlist")
                     PosterTitleField(text: $setlist.name)
@@ -184,16 +233,9 @@ struct SetlistEditor: View {
                 .listRowSeparator(.hidden)
 
                 if sizeClass != .regular {
-                    DisclosureGroup(isExpanded: $infoOpen) {
-                        VStack(spacing: 14) { infoTable; actions }.padding(.top, 8)
-                    } label: {
-                        HStack(spacing: 10) {
-                            Eyebrow(text: "Info")
-                            Text([setlist.date, setlist.venue, "\(setlist.songCount) låter"].filter { !$0.isEmpty }.joined(separator: " · "))
-                                .font(.subheadline).foregroundStyle(Theme.muted).lineLimit(1)
-                        }
-                    }
-                    .listRowBackground(Color.white.opacity(0.03))
+                    infoSection
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 }
             }
 
