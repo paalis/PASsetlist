@@ -4,20 +4,20 @@ En egen iPad-app som virker helt uten nett. Bygges og kjøres rett på iPaden i
 Swift Playgrounds – ingen Mac og ingen betalt utviklerkonto.
 
 ## Funksjoner
-- Setlister med dra-og-slipp, pauser, toneart, notater og varighet
-- Import fra Spotify-lenke (krever nett, bruker samme tjeneste som nettappen) eller tekst
-- Tekst, noter og akkordskjema per låt: PDF, bilder (fra Filer eller Bilder) og tekstfiler
-- **Scenemodus** (▶): alle noter i fullskjerm i setlistens rekkefølge
-  - bla med sveip, trykk i venstre/høyre kant, eller Bluetooth-pedal
-    (piltaster, mellomrom, Page Up/Down)
-  - viser «Neste: …», og skjermen sovner ikke
-  - **Pencil-notater**: trykk på blyanten, velg penn/markør/viskelær og skriv med
-    Apple Pencil. Notatene lagres per side og tegnes på et eget lag over noten.
-- **Notehefte**: én PDF med forside og alle filene i rekkefølge, med Pencil-notatene,
-  som kan deles, lagres i Filer, skrives ut eller sendes med AirDrop
-
-Alt lagres på iPaden (i appens dokumentmappe). Denne versjonen synkroniserer ikke med
-nettappen eller bandkoden.
+Samme utseende og samme data som nettsiden (setlistlive.vercel.app):
+- **Bandkode:** logg inn med samme kode som på nettsiden – setlister, filer og Pencil-notater
+  deles begge veier. Snakker med Firestore over REST (ingen Firebase-bibliotek nødvendig).
+- **Virker uten nett:** alt lagres på iPaden først. Endringer sendes når det er nett igjen, og
+  alle filer lastes ned i bakgrunnen så notene er klare på scenen.
+- Konsert-tema som nettsiden: konsertfoto, plakatfonten Anton, setlister som billetter,
+  vinylplate med Spotify-cover og dato.
+- Setlister fra Spotify-lenke eller tekst, sortering, pauser, toneart, notater og varighet.
+- Filer per låt (PDF, bilder, tekst) – lastes opp til bandet.
+- **Scenemodus** med Pencil-notater: Pencil tegner, fingeren blar (sveip/trykk i kanten),
+  pedal/piltaster. Penn i tre farger, markør, viskelær og angre. «Tegn med finger» for
+  simulatoren eller uten Pencil. Notatene vises også på nettsiden, og omvendt.
+- **Notehefte** (PDF med notatene) og **utskrift** med valg (scene/kompakt/to kolonner,
+  retning, tilpass til én side, hva som vises, lys/mørk).
 
 ## Slik får du den på iPaden
 1. Installer **Swift Playgrounds** fra App Store (gratis).

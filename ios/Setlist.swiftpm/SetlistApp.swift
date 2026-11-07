@@ -10,10 +10,17 @@ struct SetlistApp: App {
             ContentView()
                 .environmentObject(store)
                 .preferredColorScheme(.dark)
-                .tint(.pink)
+                .tint(Theme.accent)
+                .task {
+                    // Synk jevnlig mens appen er åpen, så endringer fra bandet dukker opp
+                    while !Task.isCancelled {
+                        await store.sync()
+                        try? await Task.sleep(nanoseconds: 20_000_000_000)
+                    }
+                }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { store.saveNow() }
+            if phase == .active { Task { await store.sync() } } else { store.saveNow() }
         }
     }
 }

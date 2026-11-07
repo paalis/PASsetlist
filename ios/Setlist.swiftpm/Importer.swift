@@ -1,30 +1,30 @@
 import Foundation
 
-struct ImportError: LocalizedError {
-    let message: String
-    var errorDescription: String? { message }
-}
-
 enum Importer {
-    /// Samme tjeneste som nettappen bruker for å lese Spotify-spillelister.
+    /// Samme tjeneste som nettsiden bruker for å lese Spotify-spillelister.
     static let spotifyAPI = URL(string: "https://setlistlive.vercel.app/api/playlist")!
 
-    private struct SpotifyResponse: Decodable {
+    struct SpotifyResult {
+        let name: String
+        let cover: String
+        let items: [SetlistItem]
+    }
+
+    private struct Response: Decodable {
         struct Track: Decodable {
             let title: String
             let artist: String
-            let durationMs: Int?
+            let durationMs: Double?
         }
         let name: String?
+        let cover: String?
         let tracks: [Track]
     }
 
-    private struct ErrorResponse: Decodable {
-        let error: String
-    }
+    private struct ErrorResponse: Decodable { let error: String }
 
-    /// Henter tittel og artist fra en Spotify-lenke. Krever nett.
-    static func fetchSpotify(_ link: String) async throws -> (name: String, items: [SetlistItem]) {
+    /// Henter tittel, artist, varighet og cover fra en Spotify-lenke. Krever nett.
+    static func fetchSpotify(_ link: String) async throws -> SpotifyResult {
         var components = URLComponents(url: spotifyAPI, resolvingAgainstBaseURL: false)!
         // Lenken inneholder selv ? og & – kod alt som ikke er bokstaver/tall
         let encoded = link.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? link
@@ -34,18 +34,19 @@ enum Importer {
         do {
             (data, response) = try await URLSession.shared.data(from: components.url!)
         } catch {
-            throw ImportError(message: "Fikk ikke kontakt med Spotify-tjenesten. Er iPaden på nett?")
+            throw CloudError(message: "Fikk ikke kontakt med Spotify-tjenesten. Er iPaden på nett?")
         }
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
             let message = (try? JSONDecoder().decode(ErrorResponse.self, from: data))?.error
-            throw ImportError(message: message ?? "Klarte ikke å hente spillelisten.")
+            throw CloudError(message: message ?? "Klarte ikke å hente spillelisten.")
         }
-        let result = try JSONDecoder().decode(SpotifyResponse.self, from: data)
+        let result = try JSONDecoder().decode(Response.self, from: data)
         let items = result.tracks.map {
-            SetlistItem(title: $0.title, artist: $0.artist, duration: ($0.durationMs ?? 0) / 1000)
+            SetlistItem(title: $0.title, artist: $0.artist, durationMs: Int($0.durationMs ?? 0))
         }
-        if items.isEmpty { throw ImportError(message: "Spillelisten ser ut til å være tom.") }
-        return (result.name ?? "", items)
+        if items.isEmpty { throw CloudError(message: "Spillelisten ser ut til å være tom.") }
+        let cover = result.cover ?? ""
+        return SpotifyResult(name: result.name ?? "", cover: cover.hasPrefix("https://") ? cover : "", items: items)
     }
 
     /// Én låt per linje: «Artist - Tittel» eller bare tittel. Nummerering foran fjernes.
@@ -58,10 +59,8 @@ enum Importer {
             guard !line.isEmpty else { return nil }
             for separator in [" - ", " – ", " — "] {
                 if let range = line.range(of: separator) {
-                    return SetlistItem(
-                        title: String(line[range.upperBound...]).trimmed,
-                        artist: String(line[..<range.lowerBound]).trimmed
-                    )
+                    return SetlistItem(title: String(line[range.upperBound...]).trimmed,
+                                       artist: String(line[..<range.lowerBound]).trimmed)
                 }
             }
             return SetlistItem(title: line)

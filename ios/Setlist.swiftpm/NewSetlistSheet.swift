@@ -1,14 +1,14 @@
 import SwiftUI
 
+@MainActor
 struct NewSetlistSheet: View {
-    var onCreate: (Setlist) -> Void
+    var target: Binding<Setlist>? = nil // satt = legg låter til en eksisterende setlist
+    var onCreate: (Setlist) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
 
     enum Source: String, CaseIterable, Identifiable {
-        case spotify = "Spotify"
-        case text = "Tekst"
-        case empty = "Tom liste"
+        case spotify = "Spotify", text = "Tekst", empty = "Tom liste"
         var id: Self { self }
     }
 
@@ -19,21 +19,22 @@ struct NewSetlistSheet: View {
     @State private var loading = false
     @State private var errorMessage: String?
 
+    private var sources: [Source] { target == nil ? Source.allCases : [.spotify, .text] }
+
     var body: some View {
         NavigationStack {
             Form {
                 Picker("Kilde", selection: $source) {
-                    ForEach(Source.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(sources) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
 
                 switch source {
                 case .spotify:
                     Section {
                         TextField("https://open.spotify.com/playlist/…", text: $link)
-                            .keyboardType(.URL)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
+                            .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                     } header: {
                         Text("Lenke til spilleliste eller album")
                     } footer: {
@@ -41,9 +42,7 @@ struct NewSetlistSheet: View {
                     }
                 case .text:
                     Section {
-                        TextEditor(text: $text)
-                            .frame(minHeight: 200)
-                            .font(.body.monospaced())
+                        TextEditor(text: $text).frame(minHeight: 200).font(.body.monospaced())
                     } header: {
                         Text("Én låt per linje – «Artist - Tittel» eller bare tittel")
                     }
@@ -51,27 +50,26 @@ struct NewSetlistSheet: View {
                     EmptyView()
                 }
 
-                Section {
-                    TextField(source == .spotify ? "Navn (valgfritt – hentes fra Spotify)" : "Navn på setlisten", text: $name)
+                if target == nil {
+                    Section {
+                        TextField(source == .spotify ? "Navn (valgfritt – hentes fra Spotify)" : "F.eks. Julebord 14. desember", text: $name)
+                    } header: { Text("Navn på setlisten") }
                 }
 
                 if let errorMessage {
-                    Section {
-                        Text(errorMessage).foregroundStyle(.red)
-                    }
+                    Section { Text(errorMessage).foregroundStyle(Theme.accent) }
                 }
             }
-            .navigationTitle("Ny setlist")
-            .navigationBarTitleDisplayMode(.inline)
+            .scrollContentBackground(.hidden)
+            .background(Theme.surface)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Avbryt") { dismiss() }
+                ToolbarItem(placement: .principal) {
+                    PosterText(text: target == nil ? "Opprett ny setlist" : "Legg til låter", size: 22)
                 }
+                ToolbarItem(placement: .cancellationAction) { Button("Avbryt") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    if loading {
-                        ProgressView()
-                    } else {
-                        Button(source == .spotify ? "Hent låter" : "Opprett") {
+                    if loading { ProgressView() } else {
+                        Button(source == .spotify ? "Hent låter" : (target == nil ? "Opprett" : "Legg til")) {
                             Task { await create() }
                         }
                         .bold()
@@ -84,19 +82,19 @@ struct NewSetlistSheet: View {
     @MainActor
     private func create() async {
         errorMessage = nil
-        var setlist = Setlist()
+        var items: [SetlistItem] = []
+        var fetchedName = ""
+        var cover = ""
 
         switch source {
         case .spotify:
-            guard !link.trimmed.isEmpty else {
-                errorMessage = "Lim inn en Spotify-lenke."
-                return
-            }
+            guard !link.trimmed.isEmpty else { errorMessage = "Lim inn en Spotify-lenke."; return }
             loading = true
             do {
                 let result = try await Importer.fetchSpotify(link.trimmed)
-                setlist.items = result.items
-                if !result.name.isEmpty { setlist.name = result.name }
+                items = result.items
+                fetchedName = result.name
+                cover = result.cover
             } catch {
                 loading = false
                 errorMessage = error.localizedDescription + " Du kan også bruke «Tekst»."
@@ -104,17 +102,21 @@ struct NewSetlistSheet: View {
             }
             loading = false
         case .text:
-            setlist.items = Importer.parseText(text)
-            if setlist.items.isEmpty {
-                errorMessage = "Skriv inn minst én låt."
-                return
-            }
+            items = Importer.parseText(text)
+            if items.isEmpty { errorMessage = "Skriv inn minst én låt."; return }
         case .empty:
             break
         }
 
-        if !name.trimmed.isEmpty { setlist.name = name.trimmed }
-        onCreate(setlist)
+        if let target {
+            target.wrappedValue.items.append(contentsOf: items)
+            if target.wrappedValue.cover.isEmpty && !cover.isEmpty { target.wrappedValue.cover = cover }
+            if target.wrappedValue.spotifyUrl.isEmpty && source == .spotify { target.wrappedValue.spotifyUrl = link.trimmed }
+        } else {
+            var sl = Setlist(name: name.trimmed.isEmpty ? (fetchedName.isEmpty ? "Ny setlist" : fetchedName) : name.trimmed, items: items)
+            if source == .spotify { sl.spotifyUrl = link.trimmed; sl.cover = cover }
+            onCreate(sl)
+        }
         dismiss()
     }
 }
