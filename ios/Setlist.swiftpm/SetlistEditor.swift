@@ -17,8 +17,6 @@ struct SetlistEditor: View {
     @State private var toast: String?
     @State private var infoOpen = false
     @State private var coverImage: UIImage?
-    @State private var coverMenu = false
-    @State private var pickingCover = false
     @State private var coverPick: PhotosPickerItem?
 
     struct ItemRef: Identifiable { let id: String }
@@ -224,22 +222,27 @@ struct SetlistEditor: View {
 
                 // Vinylplaten til venstre for tittelen, som et albumcover
                 HStack(alignment: .center, spacing: sizeClass == .regular ? 28 : 16) {
-                    Button { coverMenu = true } label: {
-                        Vinyl(size: sizeClass == .regular ? 150 : 96, spinning: true, coverURL: setlist.cover, coverImage: coverImage, label: vinylLabel)
+                    // Trykk på vinylen: velg bilde (også når Spotify-coveret vises).
+                    // PhotosPicker brukes direkte – en egen dialog først gjør at velgeren
+                    // av og til ikke åpner seg inne i en liste.
+                    Group {
+                        if setlist.coverFile == nil {
+                            PhotosPicker(selection: $coverPick, matching: .images) { vinylView }
+                        } else {
+                            Menu {
+                                PhotosPicker(selection: $coverPick, matching: .images) {
+                                    Label("Bytt bilde …", systemImage: "photo")
+                                }
+                                Button(role: .destructive) { removeCover() } label: {
+                                    Label(setlist.cover.isEmpty ? "Fjern bilde" : "Fjern bilde (vis Spotify-coveret)", systemImage: "trash")
+                                }
+                            } label: { vinylView }
+                        }
                     }
                     .buttonStyle(.plain)
                     .padding(.vertical, 6)
                     .accessibilityLabel("Vinylbilde")
-                    .accessibilityHint("Velg eller fjern bilde i vinylen")
-                    .confirmationDialog("Bilde i vinylen", isPresented: $coverMenu, titleVisibility: .visible) {
-                        Button("Velg bilde …") { pickingCover = true }
-                        if setlist.coverFile != nil {
-                            Button("Fjern bilde", role: .destructive) { removeCover() }
-                        }
-                    } message: {
-                        Text(setlist.cover.isEmpty ? "Bildet vises midt på vinylplaten." : "Bildet vises i stedet for Spotify-coveret.")
-                    }
-                    .photosPicker(isPresented: $pickingCover, selection: $coverPick, matching: .images)
+                    .accessibilityHint("Velg eget bilde i vinylen")
                     VStack(alignment: .leading, spacing: 6) {
                         Eyebrow(text: "Setlist")
                         PosterTitleField(text: $setlist.name)
@@ -309,6 +312,19 @@ struct SetlistEditor: View {
     }
 
     // MARK: - Bilde i vinylen
+
+    private var vinylView: some View {
+        Vinyl(size: sizeClass == .regular ? 150 : 96, spinning: true, coverURL: setlist.cover, coverImage: coverImage, label: vinylLabel)
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: "photo.badge.plus")
+                    .font(.system(size: sizeClass == .regular ? 15 : 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(sizeClass == .regular ? 8 : 6)
+                    .background(Circle().fill(Color.black.opacity(0.7)))
+                    .overlay(Circle().stroke(Color.white.opacity(0.15)))
+            }
+            .contentShape(Circle())
+    }
 
     private func loadCover() async {
         guard let ref = setlist.coverFile else { coverImage = nil; return }
