@@ -413,6 +413,13 @@ input[type='date'] { color-scheme: dark; }
 /* Safari (iOS) gir datofeltet en egen minstebredde og ignorerer width */
 input.spec-input[type='date'] { -webkit-appearance: none; appearance: none; display: block; min-height: 32px; margin-left: auto; }
 input.spec-input[type='date']::-webkit-date-and-time-value { text-align: right; margin: 0; }
+/* Datofeltet får hele raden å trykke på; Safari gir ellers et tomt felt null bredde */
+.spec dd.date-dd { flex: 1; position: relative; display: flex; justify-content: flex-end; overflow: visible; }
+.date-dd input.spec-input[type='date'] { width: 100%; max-width: 190px; margin-left: 0; }
+.date-ph { position: absolute; right: 0; top: 50%; transform: translateY(-50%); color: var(--faint); pointer-events: none; }
+.date-dd.has-value .date-ph, .date-dd:focus-within .date-ph { display: none; }
+.date-dd:not(.has-value) input.spec-input[type='date']:not(:focus) { color: transparent; }
+.date-dd:not(.has-value) input.spec-input[type='date']:not(:focus)::-webkit-calendar-picker-indicator { opacity: 0; }
 
 .spec-notes { display: flex; flex-direction: column; gap: 8px; }
 .spec-notes > span { font-size: 10.5px; color: var(--muted); }
@@ -676,7 +683,7 @@ textarea.plain:focus, input.plain:focus { outline: none; border-color: var(--acc
 
 /* iOS Safari zoomer inn på felt med skrift under 16px – unngå det på touch-enheter */
 @media (pointer: coarse) {
-  .song input, .song input.title, .song.break input.title, input.plain, textarea.plain, .field input, .field textarea, .spec-input { font-size: 16px; }
+  .song input, .song input.title, .song.break input.title, input.plain, textarea.plain, .field input, .field textarea, .spec-input, .date-ph { font-size: 16px; }
 }
 
 /* ---------- Utskriftsvindu ---------- */

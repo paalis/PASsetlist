@@ -669,7 +669,7 @@ function renderEditor(sl) {
         </button>
         <div class="deck-info${deckInfoOpen ? ' open' : ''}" id="deckInfo">
         <dl class="spec">
-          <div><dt>Dato</dt><dd><input class="spec-input" id="slDate" type="date" value="${esc(sl.date)}" aria-label="Dato" /></dd></div>
+          <div><dt>Dato</dt><dd class="date-dd${sl.date ? ' has-value' : ''}"><input class="spec-input" id="slDate" type="date" value="${esc(sl.date)}" aria-label="Dato" /><span class="date-ph" aria-hidden="true">Legg til dato</span></dd></div>
           <div><dt>Sted</dt><dd><input class="spec-input" id="slVenue" value="${esc(sl.venue)}" placeholder="Legg til sted" aria-label="Sted" /></dd></div>
           <div><dt>Låter</dt><dd id="specSongs"></dd></div>
           <div><dt>Spilletid</dt><dd id="specTime"></dd></div>
@@ -727,6 +727,19 @@ function renderEditor(sl) {
 
   bind('slName', 'name');
   bind('slDate', 'date');
+  // iOS Safari sender ikke alltid «input» fra datovelgeren – lytt også på «change»,
+  // og vis «Legg til dato» når feltet er tomt (Safari viser ellers ingenting å trykke på)
+  const dateInput = document.getElementById('slDate');
+  dateInput.addEventListener('change', () => {
+    if (sl.date !== dateInput.value) {
+      sl.date = dateInput.value;
+      touch(sl);
+      updateStats(sl);
+    }
+  });
+  const markDate = () => dateInput.parentElement.classList.toggle('has-value', !!dateInput.value);
+  dateInput.addEventListener('input', markDate);
+  dateInput.addEventListener('change', markDate);
   bind('slVenue', 'venue');
   bind('slNotes', 'notes');
 
