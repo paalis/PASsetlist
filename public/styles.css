@@ -363,6 +363,33 @@ main { max-width: 1280px; margin: 0 auto; padding: 0 28px 96px; }
 .vinyl-label b { font-size: clamp(20px, 2.4vw, 30px); font-weight: 800; line-height: 1; letter-spacing: -0.03em; margin-top: -30%; }
 .vinyl-label small { font-size: 9px; font-weight: 700; letter-spacing: 0.24em; margin-top: 26%; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Vinylen i redigeringen er en knapp: trykk for å velge eget bilde */
+.vinyl-btn {
+  position: relative; display: block; width: 100%; max-width: 300px; margin: 0 auto; padding: 0;
+  border: 0; border-radius: 50%; background: none; color: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.vinyl-btn .vinyl.xl { max-width: none; }
+.vinyl-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.vinyl-badge {
+  position: absolute; right: 6%; bottom: 6%; z-index: 2; display: grid; place-items: center;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(8, 7, 10, 0.78); color: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16);
+  transition: background 0.2s, transform 0.2s;
+}
+@media (hover: hover) { .vinyl-btn:hover .vinyl-badge { background: var(--accent); transform: scale(1.08); } }
+.deck-vinyl { flex-direction: column; gap: 8px; }
+.cover-remove {
+  border: 0; background: none; padding: 4px 8px; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
+}
+.cover-remove:hover { color: var(--accent); }
+.cover-remove[hidden] { display: none; }
+
+/* Liten vinyl ved siden av tittelen – bare på telefon (der den store er skjult) */
+.title-row { display: flex; align-items: center; gap: 14px; }
+.title-col { flex: 1; min-width: 0; }
+.vinyl-btn-sm, .cover-remove-sm { display: none; }
 @media (prefers-reduced-motion: reduce) { .vinyl { animation: none !important; } }
 
 .empty {
@@ -632,6 +659,15 @@ textarea.plain:focus, input.plain:focus { outline: none; border-color: var(--acc
 
   .deck { grid-template-columns: minmax(0, 1fr); }
   .deck-vinyl { display: none; }
+  .vinyl-btn-sm { display: block; flex: none; width: 92px; margin: 0; }
+  .vinyl-btn-sm .vinyl-badge { width: 26px; height: 26px; right: -2px; bottom: -2px; }
+  .vinyl-btn-sm .vinyl-badge svg { width: 13px; height: 13px; }
+  .vinyl-btn-sm .vinyl.xl { box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 0 0 4px #0d0c0e; }
+  .vinyl-btn-sm .vinyl-label, .vinyl-btn-sm .vinyl-label.has-cover { width: 54%; }
+  .vinyl-btn-sm .vinyl-label b { font-size: 16px; margin-top: -26%; }
+  .vinyl-btn-sm .vinyl-label small { font-size: 6.5px; letter-spacing: 0.14em; margin-top: 22%; }
+  .cover-remove-sm { display: inline-block; margin: -14px 0 10px -8px; }
+  .cover-remove-sm[hidden] { display: none; }
   .deck .spec, .deck .spec-notes, .deck .deck-actions { grid-column: 1; }
 
   .info-toggle {

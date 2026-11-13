@@ -24,6 +24,12 @@ function loadLocal() {
 
 let setlists = loadLocal();
 let cloudEnabled = false; // Firebase er konfigurert
+
+// Eget bilde i vinylen (se «Eget bilde i vinylen» lenger ned)
+const COVER_ICON =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m17 15-3.5-3.5L7 18"/><path d="M20 3v6M17 6h6"/></svg>';
+const coverUrls = new Map(); // fil-id -> objekt-URL (bildet hentes én gang)
+const coverLoading = new Set();
 let cloudUser = null; // innlogget bruker
 let cloudLoading = false; // venter på første data fra Firestore
 const pendingSaves = new Map(); // id -> timer
@@ -464,7 +470,7 @@ function renderHome() {
       const [removed] = setlists.splice(idx, 1);
       persistRemove(removed.id);
       renderHome();
-      scheduleFileCleanup(removed.items.flatMap((i) => i.files || []));
+      scheduleFileCleanup([...removed.items.flatMap((i) => i.files || []), ...(removed.coverFile ? [removed.coverFile] : [])]);
       toast(`«${removed.name || 'Uten navn'}» ble slettet`, {
         label: 'Angre',
         run: () => {
@@ -659,9 +665,14 @@ function renderEditor(sl) {
     <div class="editor">
       <aside class="deck">
         <a href="#/" class="back">← Alle setlister</a>
-        <div class="deck-vinyl" aria-hidden="true">
-          <div class="vinyl xl"><span class="vinyl-label" id="deckLabel"></span></div>
+        <div class="deck-vinyl">
+          <button type="button" class="vinyl-btn" data-cover-pick aria-label="Velg eget bilde i vinylen">
+            <span class="vinyl xl"><span class="vinyl-label js-vinyl-label"></span></span>
+            <span class="vinyl-badge" aria-hidden="true">${COVER_ICON}</span>
+          </button>
+          <button type="button" class="cover-remove" data-cover-remove hidden>Fjern bilde</button>
         </div>
+        <input type="file" id="coverInput" accept="image/*" hidden />
         <button type="button" class="info-toggle" id="infoToggle" aria-expanded="${deckInfoOpen}" aria-controls="deckInfo">
           <span class="info-label">Info</span>
           <span class="info-summary" id="infoSummary"></span>
@@ -691,9 +702,18 @@ function renderEditor(sl) {
       </aside>
 
       <section class="tracks">
-        <p class="eyebrow">Setlist</p>
-        <input class="title-input" id="slName" value="${esc(sl.name)}" placeholder="Navn på setlisten" aria-label="Navn" />
-        <div class="toolbar"><div class="stats" id="stats"></div></div>
+        <div class="title-row">
+          <button type="button" class="vinyl-btn vinyl-btn-sm" data-cover-pick aria-label="Velg eget bilde i vinylen">
+            <span class="vinyl xl"><span class="vinyl-label js-vinyl-label"></span></span>
+            <span class="vinyl-badge" aria-hidden="true">${COVER_ICON}</span>
+          </button>
+          <div class="title-col">
+            <p class="eyebrow">Setlist</p>
+            <input class="title-input" id="slName" value="${esc(sl.name)}" placeholder="Navn på setlisten" aria-label="Navn" />
+            <div class="toolbar"><div class="stats" id="stats"></div></div>
+            <button type="button" class="cover-remove cover-remove-sm" data-cover-remove hidden>Fjern bilde</button>
+          </div>
+        </div>
 
         <div class="cols" aria-hidden="true">
           <span></span><span class="r">#</span><span>Tittel</span><span>Artist</span><span class="c">Toneart</span><span>Notat</span><span class="r">Tid</span><span class="c">Noter</span><span class="spacer"></span>
@@ -726,6 +746,7 @@ function renderEditor(sl) {
   };
 
   bind('slName', 'name');
+  bindCover(sl);
   bind('slDate', 'date');
   // iOS Safari sender ikke alltid «input» fra datovelgeren – lytt også på «change»,
   // og vis «Legg til dato» når feltet er tomt (Safari viser ellers ingenting å trykke på)
@@ -805,15 +826,104 @@ function updateStats(sl) {
   set('specFiles', files ? `${files} filer · ${withFiles}/${songs.length} låter` : 'Ingen ennå');
   const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(sl.date || '');
   const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAI', 'JUN', 'JUL', 'AUG', 'SEP', 'OKT', 'NOV', 'DES'];
-  const label = document.getElementById('deckLabel');
-  if (label) {
-    const cover = safeCover(sl.cover);
+  // Eget bilde (sl.coverFile, samme som iPad-appen) går foran Spotify-coveret
+  const own = sl.coverFile ? coverUrls.get(sl.coverFile.id) : null;
+  if (sl.coverFile && !own) loadCoverFile(sl);
+  const cover = own || safeCover(sl.cover);
+  for (const label of document.querySelectorAll('.js-vinyl-label')) {
     label.classList.toggle('has-cover', !!cover);
     if (cover) label.style.setProperty('--cover', `url("${cover}")`);
     else label.style.removeProperty('--cover');
     label.innerHTML = m
       ? `<b>${Number(m[2])}</b><small>${months[Number(m[1]) - 1]}</small>`
       : `<b>${esc((sl.name || 'S').trim().charAt(0).toUpperCase())}</b><small>SETLIST</small>`;
+  }
+  for (const b of document.querySelectorAll('[data-cover-remove]')) b.hidden = !sl.coverFile;
+}
+
+/* ---------- Eget bilde i vinylen ---------- */
+
+
+async function loadCoverFile(sl) {
+  const ref = sl.coverFile;
+  if (!ref || coverLoading.has(ref.id) || !window.cloud?.signedIn) return;
+  coverLoading.add(ref.id);
+  try {
+    const blob = await window.cloud.fetchFile(ref.id);
+    coverUrls.set(ref.id, URL.createObjectURL(blob));
+    if (currentSetlist()?.id === sl.id) updateStats(currentSetlist());
+  } catch (_) {
+    // Ikke tilgjengelig nå (f.eks. uten nett) – Spotify-coveret eller den røde etiketten vises
+  } finally {
+    coverLoading.delete(ref.id);
+  }
+}
+
+// Kvadratisk JPEG (maks 800 px), beskåret fra midten – som i appen
+async function squareImage(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('Klarte ikke å lese bildet.'));
+      i.src = url;
+    });
+    const side = Math.min(img.naturalWidth, img.naturalHeight);
+    const out = Math.min(800, side);
+    const c = document.createElement('canvas');
+    c.width = c.height = out;
+    c.getContext('2d').drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, out, out);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+    if (!blob) throw new Error('Klarte ikke å lagre bildet.');
+    return blob;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function bindCover(sl) {
+  const input = document.getElementById('coverInput');
+  for (const b of document.querySelectorAll('[data-cover-pick]')) {
+    b.onclick = () => {
+      if (!window.cloud?.signedIn) {
+        toast('Logg inn med bandkoden for å bruke eget bilde i vinylen');
+        if (cloudEnabled) openCodeDialog();
+        return;
+      }
+      input.value = '';
+      input.click();
+    };
+  }
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      toast('Laster opp bilde …');
+      const blob = await squareImage(file);
+      const meta = { id: uid(), name: 'vinyl.jpg', type: 'image/jpeg', size: blob.size };
+      await window.cloud.uploadFile(meta.id, blob, meta, () => {});
+      coverUrls.set(meta.id, URL.createObjectURL(blob));
+      const old = sl.coverFile;
+      sl.coverFile = meta;
+      touch(sl);
+      updateStats(sl);
+      toast('Bildet er lagt i vinylen');
+      if (old && !fileInUse(old.id)) window.cloud.deleteFile(old.id).catch(() => {});
+    } catch (err) {
+      toast(err.message || 'Klarte ikke å laste opp bildet.');
+    }
+  };
+  for (const b of document.querySelectorAll('[data-cover-remove]')) {
+    b.onclick = () => {
+      const old = sl.coverFile;
+      if (!old) return;
+      delete sl.coverFile;
+      touch(sl);
+      updateStats(sl);
+      toast(sl.cover ? 'Bildet er fjernet – Spotify-coveret vises igjen' : 'Bildet er fjernet');
+      if (!fileInUse(old.id)) window.cloud?.deleteFile(old.id).catch(() => {});
+    };
   }
 }
 
@@ -1308,7 +1418,7 @@ function fileKind(type, name) {
 const fileIcon = (kind) => ({ pdf: 'PDF', image: 'BILDE', text: 'TEKST' }[kind] || 'FIL');
 
 function fileInUse(id) {
-  return setlists.some((sl) => sl.items.some((i) => (i.files || []).some((f) => f.id === id)));
+  return setlists.some((sl) => sl.coverFile?.id === id || sl.items.some((i) => (i.files || []).some((f) => f.id === id)));
 }
 
 // Slett filer som ingen låt bruker lenger (etter at «Angre» har gått ut)
